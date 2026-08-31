@@ -1,3 +1,9 @@
+databases:
+  - name: fraudlens-db
+    plan: free
+    databaseName: fraudlens
+    user: fraudlens
+
 services:
   - type: web
     name: fraudlens-backend
@@ -7,9 +13,13 @@ services:
     startCommand: npx prisma migrate deploy && npm run start
     envVars:
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: fraudlens-db
+          property: connectionString
       - key: DIRECT_URL
-        sync: false
+        fromDatabase:
+          name: fraudlens-db
+          property: connectionString
       - key: PORT
         value: 3000
       - key: CORS_ORIGIN
