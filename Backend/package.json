@@ -1,0 +1,41 @@
+{
+  "name": "fraudlens-backend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "postinstall": "prisma generate",
+    "build": "nest build",
+    "start": "node dist/main",
+    "start:dev": "nest start --watch",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "latest",
+    "@nestjs/config": "latest",
+    "@nestjs/core": "latest",
+    "@nestjs/platform-express": "latest",
+    "@prisma/client": "^6.19.3",
+    "class-transformer": "latest",
+    "class-validator": "latest",
+    "reflect-metadata": "latest",
+    "rxjs": "latest"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "latest",
+    "@types/express": "latest",
+    "@types/node": "latest",
+    "prisma": "^6.19.3",
+    "ts-node": "latest",
+    "typescript": "latest"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.10.0": true,
+    "prisma@7.10.0": true
+  }
+}

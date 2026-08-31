@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Transaction {
+  id String @id @default(uuid())
+
+  // Identificador de negocio enviado por el sistema cliente (transaction_id).
+  externalId String @unique
+
+  userId    String
+  timestamp DateTime
+  amount    Float
+  currency  String
+  category  String
+  merchant  String
+  country   String
+  channel   String
+  deviceId  String?
+
+  // Campos estilo PaySim (dataset de referencia: Synthetic Financial Datasets
+  // For Fraud Detection), opcionales: se usan como senales extra del motor de
+  // riesgo cuando el sistema cliente los provee (transferencias, billeteras).
+  operationType   String? // CASH_IN | CASH_OUT | DEBIT | PAYMENT | TRANSFER
+  nameOrig        String?
+  oldBalanceOrig  Float?
+  newBalanceOrig  Float?
+  nameDest        String?
+  oldBalanceDest  Float?
+  newBalanceDest  Float?
+
+  // Resultado del analisis
+  riskScore       Float?
+  riskLevel       String? // bajo | medio | alto | critico | no_evaluado
+  decision        String // aprobar | revisar | bloquear
+  analyzedByModel Boolean
+  status          String // analizada | no_evaluada | analisis_no_disponible
+  ruleApplied     String
+
+  // Trazabilidad (CU-06 / NFR): factores completos del modelo, resumen del
+  // historial utilizado y snapshot de los umbrales vigentes al momento del analisis.
+  factors           String // JSON: [{ code, label, points }]
+  historySummary    String? // JSON
+  thresholdSnapshot String // JSON
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, timestamp])
+  @@index([timestamp])
+  @@index([riskLevel])
+  @@index([decision])
+}
+
+model ThresholdConfig {
+  id Int @id @default(1)
+
+  minAmountEnabled Boolean @default(true)
+  minAmount        Float   @default(10000)
+  reviewThreshold  Float   @default(60)
+  blockThreshold   Float   @default(85)
+
+  updatedBy String   @default("seed")
+  updatedAt DateTime @updatedAt
+}
+
+model ThresholdConfigHistory {
+  id Int @id @default(autoincrement())
+
+  minAmountEnabled Boolean
+  minAmount        Float
+  reviewThreshold  Float
+  blockThreshold   Float
+
+  changedBy String
+  changedAt DateTime @default(now())
+}
