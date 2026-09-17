@@ -5,12 +5,15 @@
   "scripts": {
     "postinstall": "prisma generate",
     "build": "nest build",
-    "start": "node dist/main",
+    "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts",
+    "test": "node --test -r ts-node/register test/*.test.ts",
+    "evaluate": "ts-node evaluation/run.ts",
+    "evaluation:export": "ts-node evaluation/export-reviews.ts"
   },
   "dependencies": {
     "@nestjs/common": "latest",

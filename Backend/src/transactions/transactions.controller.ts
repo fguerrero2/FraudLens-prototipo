@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { QueryTransactionsDto } from './dto/query-transactions.dto';
+import { ReviewTransactionDto } from './dto/review-transaction.dto';
 import { TransactionsService } from './transactions.service';
 
 @Controller('transactions')
@@ -28,4 +29,10 @@ export class TransactionsController {
   findOne(@Param('transactionId') transactionId: string) {
     return this.transactionsService.findOne(transactionId);
   }
+  @Put(':transactionId/review')
+  @Roles('analyst')
+  review(@Param('transactionId') transactionId: string, @Body() dto: ReviewTransactionDto) {
+    return this.transactionsService.review(transactionId, dto);
+  }
+
 }
