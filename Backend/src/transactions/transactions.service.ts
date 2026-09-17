@@ -6,7 +6,10 @@ import { SettingsService } from '../settings/settings.service';
 import { Thresholds } from '../settings/thresholds.types';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { QueryTransactionsDto } from './dto/query-transactions.dto';
-import { computeDecision, computeRiskLevel } from './decision.util';
+import { isLowAmountExempt, decideWithVelocity } from './risk-policy';
+import { computeRiskLevel } from './decision.util';
+import { ReviewTransactionDto } from './dto/review-transaction.dto';
+import { VELOCITY_WINDOW_MINUTES } from '../risk/risk.constants';
 import { validateTimestamp } from './timestamp.validator';
 
 const UNIQUE_CONSTRAINT_ERROR = 'P2002';
@@ -44,8 +47,13 @@ export class TransactionsService {
   }
 
   private async analyzeAndPersist(dto: CreateTransactionDto, timestamp: Date, thresholds: Thresholds) {
-    // CU-02: regla de monto minimo. Si aplica, se aprueba por regla sin ejecutar el modelo.
-    if (thresholds.minAmountEnabled && dto.amount < thresholds.minAmount) {
+    // Count the full window, independently of the 200-row profile limit.
+    const recentCount = await this.prisma.transaction.count({ where: {
+      userId: dto.user_id, currency: dto.currency,
+      timestamp: { gte: new Date(timestamp.getTime() - VELOCITY_WINDOW_MINUTES * 60_000), lt: timestamp },
+    } });
+    // Low-value operations still pass the velocity control before exemption.
+    if (isLowAmountExempt(dto.amount, recentCount, thresholds)) {
       return this.prisma.transaction.create({
         data: this.baseData(dto, timestamp, {
           riskScore: null,
@@ -62,7 +70,7 @@ export class TransactionsService {
     }
 
     const history = await this.prisma.transaction.findMany({
-      where: { userId: dto.user_id },
+      where: { userId: dto.user_id, currency: dto.currency, timestamp: { lt: timestamp } },
       orderBy: { timestamp: 'desc' },
       take: 200,
     });
@@ -114,7 +122,7 @@ export class TransactionsService {
     }
 
     const riskLevel = computeRiskLevel(riskResult.score, thresholds);
-    const { decision, ruleApplied } = computeDecision(riskResult.score, thresholds);
+    const { decision, ruleApplied } = decideWithVelocity(riskResult.score, recentCount, thresholds);
 
     return this.prisma.transaction.create({
       data: this.baseData(dto, timestamp, {
@@ -209,7 +217,15 @@ export class TransactionsService {
   async findOne(transactionId: string) {
     const record = await this.prisma.transaction.findUnique({ where: { externalId: transactionId } });
     if (!record) throw new NotFoundException(`No existe una transaccion con id ${transactionId}`);
-    return this.toDetail(record);
+    const reviews = await this.prisma.transactionReview.findMany({ where: { transactionId: record.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    return { ...this.toDetail(record), review: reviews[0] ?? null, review_history: reviews };
+  }
+
+  async review(transactionId: string, dto: ReviewTransactionDto) {
+    const record = await this.prisma.transaction.findUnique({ where: { externalId: transactionId } });
+    if (!record) throw new NotFoundException(`No existe una transaccion con id ${transactionId}`);
+    await this.prisma.transactionReview.create({ data: { transactionId: record.id, outcome: dto.outcome, analyst: dto.analyst, comment: dto.comment } });
+    return this.findOne(transactionId);
   }
 
   private toListItem(record: Transaction) {

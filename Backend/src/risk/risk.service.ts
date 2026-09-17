@@ -24,21 +24,11 @@ function stddev(values: number[], avg: number): number {
   return Math.sqrt(variance);
 }
 
-/** Ruido determinista (0-11) derivado del id de transaccion, para que operaciones
- * habituales no den siempre exactamente el mismo puntaje "plano". */
-function deterministicNoise(transactionId: string): number {
-  let hash = 0;
-  for (let i = 0; i < transactionId.length; i++) {
-    hash = (hash * 31 + transactionId.charCodeAt(i)) >>> 0;
-  }
-  return hash % 12;
-}
-
 @Injectable()
 export class RiskService {
   calculate(input: TransactionSignalInput, history: HistoricalTransaction[]): RiskResult {
+    history = history.filter(h => h.timestamp < input.timestamp);
     const historyCount = history.length;
-    const noise = deterministicNoise(input.transactionId);
 
     if (historyCount === 0) {
       const factors: RiskFactor[] = [
@@ -49,7 +39,7 @@ export class RiskService {
         },
         ...computePaySimFactors(input),
       ];
-      const score = factors.reduce((sum, f) => sum + f.points, 0) + noise;
+      const score = factors.reduce((sum, f) => sum + f.points, 0);
       factors.sort((a, b) => b.points - a.points);
       return {
         score: clamp(score),
@@ -123,10 +113,10 @@ export class RiskService {
     }
 
     if (factors.length === 0) {
-      factors.push({ code: 'habitual_pattern', label: 'Patron habitual del usuario', points: noise });
+      factors.push({ code: 'habitual_pattern', label: 'Patron habitual del usuario', points: 0 });
     }
 
-    const rawScore = factors.reduce((sum, f) => sum + f.points, 0) + (factors[0]?.code === 'habitual_pattern' ? 0 : noise);
+    const rawScore = factors.reduce((sum, f) => sum + f.points, 0);
 
     factors.sort((a, b) => b.points - a.points);
 

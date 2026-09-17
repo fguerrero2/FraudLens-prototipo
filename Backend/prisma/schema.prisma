@@ -49,6 +49,8 @@ model Transaction {
   historySummary    String? // JSON
   thresholdSnapshot String // JSON
 
+  reviews TransactionReview[]
+
   createdAt DateTime @default(now())
 
   @@index([userId, timestamp])
@@ -79,4 +81,17 @@ model ThresholdConfigHistory {
 
   changedBy String
   changedAt DateTime @default(now())
+}
+
+// Append-only review history. The automatic decision remains unchanged.
+model TransactionReview {
+  id Int @id @default(autoincrement())
+  transactionId String
+  transaction Transaction @relation(fields: [transactionId], references: [id])
+  outcome String // fraud | legitimate | pending
+  analyst String
+  comment String
+  createdAt DateTime @default(now())
+
+  @@index([transactionId, createdAt])
 }

@@ -1,0 +1,110 @@
+{
+  "dataset": "synthetic-scenarios",
+  "sha256": "f6a169df3b873813557a1e091031b682c5df0f19d3226f0b53278fa044dddcc4",
+  "seed": 20260910,
+  "limitation": "Synthetic results validate the experiment pipeline, not real-world fraud detection. Anomaly score is not a probability. No model deployed.",
+  "protocol": "Chronological 60/20/20 by unique timestamps; train-only mean/std per currency; anomaly and alternative review thresholds chosen on validation F1; test used once. Previous unlabeled events update history, never model parameters.",
+  "features": [
+    "log_amount",
+    "log_amount_to_user_average",
+    "log_recent_count",
+    "unfamiliar_country",
+    "new_device"
+  ],
+  "partitions": {
+    "train": {
+      "count": 1080,
+      "fraud": 134,
+      "start": "2025-01-01T00:00:00.000Z",
+      "end": "2025-01-02T11:58:00.000Z"
+    },
+    "validation": {
+      "count": 360,
+      "fraud": 47,
+      "start": "2025-01-02T12:00:00.000Z",
+      "end": "2025-01-02T23:58:00.000Z"
+    },
+    "test": {
+      "count": 360,
+      "fraud": 48,
+      "start": "2025-01-03T00:00:00.000Z",
+      "end": "2025-01-03T11:58:00.000Z"
+    }
+  },
+  "rules_thresholds": {
+    "minAmountEnabled": true,
+    "minAmount": 10000,
+    "reviewThreshold": 60,
+    "blockThreshold": 85
+  },
+  "tuned_review_threshold": 7,
+  "anomaly_threshold": 1.5664983317018035,
+  "models_by_currency": {
+    "ARS": {
+      "means": [
+        10.137243219898378,
+        0.6357409053249902,
+        1.1311179387717576,
+        0.09259259259259259,
+        0.14351851851851852
+      ],
+      "scales": [
+        0.8548326039486362,
+        0.39634088516146654,
+        0.49533753694222044,
+        0.2898606637499733,
+        0.35060084620657345
+      ]
+    }
+  },
+  "test": {
+    "rules": {
+      "tp": 6,
+      "fp": 25,
+      "tn": 287,
+      "fn": 42,
+      "precision": 0.1935483870967742,
+      "recall": 0.125,
+      "f1": 0.1518987341772152,
+      "false_positive_rate": 0.08012820512820513,
+      "alert_rate": 0.08611111111111111,
+      "samples": 360
+    },
+    "rules_tuned": {
+      "tp": 42,
+      "fp": 70,
+      "tn": 242,
+      "fn": 6,
+      "precision": 0.375,
+      "recall": 0.875,
+      "f1": 0.525,
+      "false_positive_rate": 0.22435897435897437,
+      "alert_rate": 0.3111111111111111,
+      "samples": 360
+    },
+    "anomaly": {
+      "tp": 23,
+      "fp": 15,
+      "tn": 297,
+      "fn": 25,
+      "precision": 0.6052631578947368,
+      "recall": 0.4791666666666667,
+      "f1": 0.5348837209302326,
+      "false_positive_rate": 0.04807692307692308,
+      "alert_rate": 0.10555555555555556,
+      "samples": 360
+    },
+    "always_legitimate": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 312,
+      "fn": 48,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "false_positive_rate": 0,
+      "alert_rate": 0,
+      "samples": 360
+    }
+  }
+}

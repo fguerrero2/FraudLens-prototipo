@@ -2,6 +2,31 @@
 
 API de analisis de fraude para el MVP de FraudLens. Stack: NestJS + TypeScript, Prisma + SQLite, autenticacion por API key (placeholder).
 
+## Ejecucion local con Docker
+
+Desde este directorio, levantar frontend, backend y PostgreSQL:
+
+```bash
+docker compose up --build
+```
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:3000/api/v1`
+- PostgreSQL: `localhost:5433` (protocolo PostgreSQL, no HTTP). Internamente el
+  backend se conecta a `postgres:5432`. El puerto del host puede cambiarse, por
+  ejemplo: `POSTGRES_PORT=55432 docker compose up --build`.
+
+Las migraciones se aplican automaticamente al iniciar el backend. Para cargar los
+datos de demostracion una vez, ejecutar:
+
+```bash
+docker compose exec backend npm run seed
+```
+
+Para detener los servicios se usa `docker compose down`. Los datos persisten en
+el volumen `postgres_data`; si se desea eliminar tambien la base local, usar
+explicitamente `docker compose down -v`.
+
 ## Setup
 
 ```bash
@@ -153,3 +178,9 @@ curl -X PUT http://localhost:3000/api/v1/settings/thresholds \
 - Los rangos de nivel de riesgo (bajo/medio/alto/critico) se recalculan a partir de los umbrales configurados, no estan hardcodeados.
 - Cada transaccion persiste el snapshot de umbrales vigentes al momento del analisis, para que cambios posteriores de configuracion no alteren resultados historicos.
 - Un error inesperado en el calculo de riesgo nunca aprueba silenciosamente: la transaccion queda con `status: "analisis_no_disponible"` y `decision: "revisar"`.
+
+## Revisión humana y evaluación reproducible
+
+El detalle de una transacción permite registrar fraude confirmado, operación legítima o revisión pendiente con analista y evidencia. Cada revisión se agrega al historial, separada de la recomendación automática. Aplicar las migraciones con `npm run prisma:deploy`; Docker lo hace al iniciar el backend.
+
+`npm test` verifica las regresiones del motor y la revisión. `npm run evaluate` ejecuta la comparación de reglas y anomalías sobre datos sintéticos. Protocolo, formato de datos y resultados en [evaluation/README.md](evaluation/README.md). El modelo experimental y los umbrales ajustados no se aplican automáticamente al servidor.
