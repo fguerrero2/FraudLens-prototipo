@@ -12,6 +12,5 @@ export function Brand() {
 export function ThemeToggle() {
   const [theme, setTheme] = useState(getInitialTheme)
   useEffect(() => { applyTheme(theme) }, [theme])
-  const label = theme === 'light' ? translate("Switch to dark mode") : translate("Switch to light mode")
-  return <button type="button" data-keep-draft className="btn" aria-pressed={theme === 'dark'} aria-label={label} title={label} onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={18} aria-hidden="true"/> : <Sun size={18} aria-hidden="true"/>}<span>{theme === 'light' ? translate("Dark mode") : translate("Light mode")}</span></button>
+  return <div className="preference-toggle"><span className="preference-label">{translate(theme === 'dark' ? 'Dark mode' : 'Light mode')}</span><button type="button" role="switch" data-keep-draft className="toggle-track" aria-checked={theme === 'dark'} aria-label={translate('Dark mode')} title={translate(theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode')} onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')}><span className="toggle-thumb" aria-hidden="true"/><span className="toggle-state" aria-hidden="true"><Sun size={18}/></span><span className="toggle-state" aria-hidden="true"><Moon size={18}/></span></button></div>
 }

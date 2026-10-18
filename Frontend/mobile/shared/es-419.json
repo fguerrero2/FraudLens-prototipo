@@ -329,5 +329,6 @@
   "{0} must be a number conforming to the specified constraints": "{0} debe ser un número válido",
   "{0} must be a UUID": "{0} debe ser un UUID válido",
   "{0} must be longer than or equal to {1} characters": "{0} debe contener al menos {1} caracteres",
-  "{0} must be shorter than or equal to {1} characters": "{0} debe contener como máximo {1} caracteres"
+  "{0} must be shorter than or equal to {1} characters": "{0} debe contener como máximo {1} caracteres",
+  "Theme": "Tema"
 }

@@ -300,5 +300,25 @@ details summary { min-height: var(--control); display: flex; align-items: center
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .spin { animation: none; } * { transition: none !important; } }
 
-.language-selector { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.language-selector .control { max-width: 100%; }
+.language-selector { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.language-selector .control { width: 250px; max-width: 100%; min-height: 44px; }
+
+/* Preference switches retain both states in their track. */
+.preference-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.preference-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.toggle-track { position: relative; isolation: isolate; display: inline-grid; grid-template-columns: 1fr 1fr; align-items: center; width: 88px; height: 44px; padding: 4px; border: 1px solid var(--control-border); border-radius: 999px; background: var(--panel); cursor: pointer; }
+.toggle-thumb { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 999px; background: var(--brand-hover); box-shadow: 0 1px 4px var(--shadow); transition: transform .2s ease; }
+.toggle-track[aria-checked="true"] .toggle-thumb { transform: translateX(100%); }
+.toggle-state { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--muted); }
+.toggle-track[aria-checked="false"] .toggle-state:nth-last-child(2), .toggle-track[aria-checked="true"] .toggle-state:last-child { color: var(--panel); }
+.login-page { min-height: 100svh; grid-template-rows: auto 1fr auto; gap: 24px; padding: 24px; }
+.login-preferences { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 20px; justify-self: end; }
+.login-page .auth-card { align-self: center; }
+.login-help { justify-self: end; }
+@media (max-width: 600px) {
+  .login-page { padding: 16px; gap: 20px; }
+  .login-preferences { gap: 12px; }
+  .login-preferences .language-selector, .login-preferences .preference-toggle { flex-direction: column; gap: 4px; }
+  .session-actions .preference-toggle { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .toggle-thumb { transition: none; } }
