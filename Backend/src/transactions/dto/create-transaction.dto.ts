@@ -1,9 +1,12 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Matches, Min } from 'class-validator';
+import { IsIn, IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Matches, Min, Max } from 'class-validator';
 
 export const PAYSIM_OPERATION_TYPES = ['CASH_IN', 'CASH_OUT', 'DEBIT', 'PAYMENT', 'TRANSFER'] as const;
 
 export class CreateTransactionDto {
+  @IsOptional() @IsNumber() @Min(-90) @Max(90) latitude?: number;
+  @IsOptional() @IsNumber() @Min(-180) @Max(180) longitude?: number;
+
   @IsString()
   @IsNotEmpty()
   transaction_id: string;
@@ -15,8 +18,9 @@ export class CreateTransactionDto {
   @IsISO8601()
   timestamp: string;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
+  @Max(1000000000000)
   amount: number;
 
   @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))

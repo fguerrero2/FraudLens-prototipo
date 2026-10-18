@@ -1,0 +1,15 @@
+{
+  "domain": "tarjetas",
+  "source": "../Datasets/tarjetas/raw/creditcard.csv",
+  "protocol": "Chronological 60/20/20 split; test is untouched during training and threshold selection.",
+  "counts": {
+    "train": 170884,
+    "validation": 56961,
+    "test": 56962
+  },
+  "fraud": {
+    "train": 360,
+    "validation": 57,
+    "test": 75
+  }
+}

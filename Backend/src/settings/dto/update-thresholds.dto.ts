@@ -1,6 +1,9 @@
-import { IsBoolean, IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Matches, MaxLength, Max, Min } from 'class-validator';
 
 export class UpdateThresholdsDto {
+  @IsOptional() @IsString() @MaxLength(100) timezone?: string;
+  @IsOptional() @Matches(/^[A-Z]{3}$/) default_currency?: string;
+
   @IsOptional()
   @IsBoolean()
   min_amount_enabled?: boolean;

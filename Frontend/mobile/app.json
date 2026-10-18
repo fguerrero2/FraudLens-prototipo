@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "FraudLens",
+    "slug": "fraudlens-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "fraudlens",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fraudlens.app"
+    },
+    "android": {
+      "package": "com.fraudlens.app"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font"
+    ]
+  }
+}

@@ -1,3 +1,4 @@
+import { currentTenant, tenantContext } from '../common/context/tenant-context';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, Transaction } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,8 +13,6 @@ import { ReviewTransactionDto } from './dto/review-transaction.dto';
 import { VELOCITY_WINDOW_MINUTES } from '../risk/risk.constants';
 import { validateTimestamp } from './timestamp.validator';
 
-const UNIQUE_CONSTRAINT_ERROR = 'P2002';
-
 @Injectable()
 export class TransactionsService {
   private readonly logger = new Logger(TransactionsService.name);
@@ -24,32 +23,37 @@ export class TransactionsService {
     private readonly settingsService: SettingsService,
   ) {}
 
-  async create(dto: CreateTransactionDto) {
-    const existing = await this.prisma.transaction.findUnique({ where: { externalId: dto.transaction_id } });
+  async create(dto: CreateTransactionDto, actor = 'client') {
+    // Serialize tenant/business-ID duplicates before inserting: avoids an aborted transaction on P2002.
+    await tenantContext.getStore()!.db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${currentTenant() + ':' + dto.transaction_id}, 0))`;
+    const existing = await this.prisma.transaction.findUnique({ where: { tenantId_externalId: { tenantId: currentTenant(), externalId: dto.transaction_id } } });
     if (existing) {
       return this.toSummary(existing, true);
     }
 
+    await tenantContext.getStore()!.db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${currentTenant() + ':' + dto.user_id + ':' + dto.currency}, 0))`;
     const timestamp = validateTimestamp(dto.timestamp);
     const thresholds = await this.settingsService.getThresholds();
 
-    try {
-      const record = await this.analyzeAndPersist(dto, timestamp, thresholds);
-      return this.toSummary(record, false);
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === UNIQUE_CONSTRAINT_ERROR) {
-        // Carrera entre dos solicitudes concurrentes con el mismo transaction_id: idempotencia.
-        const record = await this.prisma.transaction.findUniqueOrThrow({ where: { externalId: dto.transaction_id } });
-        return this.toSummary(record, true);
-      }
-      throw error;
-    }
+    const record = await this.analyzeAndPersist(dto, timestamp, thresholds);
+    if (record.decision !== 'aprobar') await this.prisma.alert.create({ data: { tenantId: currentTenant(), transactionId: record.id, severity: record.riskLevel ?? 'alto' } });
+    await this.writeAudit({
+      actor,
+      actorRole: tenantContext.getStore()!.identity.apiClientId ? 'api_client' : 'user',
+      action: 'transaction.received',
+      resourceType: 'transaction',
+      resourceId: record.externalId,
+      transactionId: record.id,
+      outcome: record.decision,
+      metadata: { rule_applied: record.ruleApplied, status: record.status },
+    });
+    return this.toSummary(record, false);
   }
 
   private async analyzeAndPersist(dto: CreateTransactionDto, timestamp: Date, thresholds: Thresholds) {
     // Count the full window, independently of the 200-row profile limit.
     const recentCount = await this.prisma.transaction.count({ where: {
-      userId: dto.user_id, currency: dto.currency,
+      tenantId: currentTenant(), userId: dto.user_id, currency: dto.currency,
       timestamp: { gte: new Date(timestamp.getTime() - VELOCITY_WINDOW_MINUTES * 60_000), lt: timestamp },
     } });
     // Low-value operations still pass the velocity control before exemption.
@@ -70,14 +74,18 @@ export class TransactionsService {
     }
 
     const history = await this.prisma.transaction.findMany({
-      where: { userId: dto.user_id, currency: dto.currency, timestamp: { lt: timestamp } },
+      where: { tenantId: currentTenant(), userId: dto.user_id, currency: dto.currency, timestamp: { lt: timestamp } },
       orderBy: { timestamp: 'desc' },
       take: 200,
     });
 
     let riskResult;
+    let selectedVersion = this.riskService.modelVersion;
     try {
-      riskResult = this.riskService.calculate(
+      const assignment = await this.prisma.tenantModel.findUnique({ where: { tenantId: currentTenant() }, include: { model: true } });
+      const engine = assignment?.enabled ? this.riskService.forModel(assignment.model) : this.riskService;
+      selectedVersion = engine.modelVersion;
+      riskResult = engine.calculate(
         {
           transactionId: dto.transaction_id,
           timestamp,
@@ -85,6 +93,7 @@ export class TransactionsService {
           category: dto.category,
           merchant: dto.merchant,
           country: dto.country,
+          currency: dto.currency,
           deviceId: dto.device_id,
           operationType: dto.operation_type,
           oldBalanceOrig: dto.old_balance_orig,
@@ -94,7 +103,7 @@ export class TransactionsService {
         },
         history.map((h) => ({
           timestamp: h.timestamp,
-          amount: h.amount,
+          amount: Number(h.amount),
           category: h.category,
           merchant: h.merchant,
           country: h.country,
@@ -132,6 +141,7 @@ export class TransactionsService {
         analyzedByModel: true,
         status: 'analizada',
         ruleApplied,
+        modelVersion: selectedVersion,
         factors: riskResult.factors,
         historySummary: riskResult.historySummary,
         thresholds,
@@ -143,6 +153,7 @@ export class TransactionsService {
     dto: CreateTransactionDto,
     timestamp: Date,
     result: {
+      modelVersion?: string;
       riskScore: number | null;
       riskLevel: string | null;
       decision: string;
@@ -155,9 +166,14 @@ export class TransactionsService {
     },
   ): Prisma.TransactionCreateInput {
     return {
+      tenant: { connect: { id: currentTenant() } },
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      modelVersion: result.modelVersion ?? null,
       externalId: dto.transaction_id,
       userId: dto.user_id,
       timestamp,
+      receivedAt: new Date(),
       amount: dto.amount,
       currency: dto.currency,
       category: dto.category,
@@ -185,7 +201,7 @@ export class TransactionsService {
   }
 
   async findAll(query: QueryTransactionsDto) {
-    const where: Prisma.TransactionWhereInput = {};
+    const where: Prisma.TransactionWhereInput = { tenantId: currentTenant() };
 
     if (query.date_from || query.date_to) {
       where.timestamp = {
@@ -215,17 +231,99 @@ export class TransactionsService {
   }
 
   async findOne(transactionId: string) {
-    const record = await this.prisma.transaction.findUnique({ where: { externalId: transactionId } });
+    const record = await this.prisma.transaction.findUnique({ where: { tenantId_externalId: { tenantId: currentTenant(), externalId: transactionId } }, include: { fraudCase: true } });
     if (!record) throw new NotFoundException(`No existe una transaccion con id ${transactionId}`);
-    const reviews = await this.prisma.transactionReview.findMany({ where: { transactionId: record.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    const reviews = await this.prisma.transactionReview.findMany({ where: { transactionId: record.id, tenantId: currentTenant() }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
     return { ...this.toDetail(record), review: reviews[0] ?? null, review_history: reviews };
   }
 
-  async review(transactionId: string, dto: ReviewTransactionDto) {
-    const record = await this.prisma.transaction.findUnique({ where: { externalId: transactionId } });
+  async review(transactionId: string, dto: ReviewTransactionDto, actor = 'analyst') {
+    const record = await this.prisma.transaction.findUnique({ where: { tenantId_externalId: { tenantId: currentTenant(), externalId: transactionId } } });
     if (!record) throw new NotFoundException(`No existe una transaccion con id ${transactionId}`);
-    await this.prisma.transactionReview.create({ data: { transactionId: record.id, outcome: dto.outcome, analyst: dto.analyst, comment: dto.comment } });
+    await this.prisma.transactionReview.create({ data: { tenantId: currentTenant(), transactionId: record.id, outcome: dto.outcome, analyst: actor, comment: dto.comment } });
+    await this.writeAudit({
+      actor,
+      actorRole: 'analyst',
+      action: 'transaction.reviewed',
+      resourceType: 'transaction',
+      resourceId: record.externalId,
+      transactionId: record.id,
+      outcome: 'success',
+      metadata: { review_outcome: dto.outcome },
+    });
     return this.findOne(transactionId);
+  }
+
+  async createCase(transactionId: string, dto: { priority: string; reason: string }, actor = 'analyst') {
+    const record = await this.prisma.transaction.findUnique({ where: { tenantId_externalId: { tenantId: currentTenant(), externalId: transactionId } } });
+    if (!record) throw new NotFoundException(`No existe una transaccion con id ${transactionId}`);
+    const fraudCase = await this.prisma.fraudCase.upsert({
+      where: { transactionId: record.id, tenantId: currentTenant() },
+      create: { tenantId: currentTenant(), transactionId: record.id, priority: dto.priority, reason: dto.reason, createdBy: actor },
+      update: { priority: dto.priority, reason: dto.reason, status: 'open', resolution: null, resolvedBy: null, resolvedAt: null },
+    });
+    await this.writeAudit({
+      actor,
+      actorRole: 'analyst',
+      action: 'fraud_case.opened',
+      resourceType: 'fraud_case',
+      resourceId: record.externalId,
+      transactionId: record.id,
+      outcome: 'success',
+      metadata: { case_id: fraudCase.id, priority: fraudCase.priority },
+    });
+    return fraudCase;
+  }
+
+  async updateCase(transactionId: string, dto: { status: string; assigned_to?: string; resolution?: string }, actor = 'analyst') {
+    const record = await this.prisma.transaction.findUnique({ where: { tenantId_externalId: { tenantId: currentTenant(), externalId: transactionId } }, include: { fraudCase: true } });
+    if (!record) throw new NotFoundException(`No existe una transaccion con id ${transactionId}`);
+    if (!record.fraudCase) throw new NotFoundException(`No existe un caso para la transaccion ${transactionId}`);
+    const resolved = dto.status === 'resolved' || dto.status === 'closed';
+    const fraudCase = await this.prisma.fraudCase.update({
+      where: { transactionId: record.id, tenantId: currentTenant() },
+      data: {
+        status: dto.status,
+        assignedTo: dto.assigned_to,
+        resolution: dto.resolution,
+        resolvedBy: resolved ? actor : null,
+        resolvedAt: resolved ? new Date() : null,
+      },
+    });
+    await this.writeAudit({
+      actor,
+      actorRole: 'analyst',
+      action: 'fraud_case.updated',
+      resourceType: 'fraud_case',
+      resourceId: record.externalId,
+      transactionId: record.id,
+      outcome: 'success',
+      metadata: { case_id: fraudCase.id, status: fraudCase.status },
+    });
+    return fraudCase;
+  }
+
+  async getCases(status?: string) {
+    return this.prisma.fraudCase.findMany({
+      where: { tenantId: currentTenant(), ...(status ? { status } : {}) },
+      include: { transaction: { select: { externalId: true, userId: true, amount: true, currency: true, decision: true, riskLevel: true, timestamp: true } } },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  private async writeAudit(entry: {
+    actor: string;
+    actorRole: string;
+    action: string;
+    resourceType: string;
+    resourceId?: string;
+    transactionId?: string;
+    outcome: string;
+    metadata: Record<string, unknown>;
+  }) {
+    await this.prisma.auditLog.create({
+      data: { tenantId: currentTenant(), ...entry, metadata: JSON.stringify(entry.metadata) },
+    });
   }
 
   private toListItem(record: Transaction) {
@@ -233,9 +331,11 @@ export class TransactionsService {
       transaction_id: record.externalId,
       user_id: record.userId,
       timestamp: record.timestamp.toISOString(),
-      amount: record.amount,
+      amount: Number(record.amount),
       currency: record.currency,
       merchant: record.merchant,
+      model_version: record.modelVersion,
+      normalized_risk_score: record.riskScore === null ? null : record.riskScore / 100,
       risk_score: record.riskScore,
       risk_level: record.riskLevel,
       decision: record.decision,
@@ -247,6 +347,8 @@ export class TransactionsService {
     const factors = JSON.parse(record.factors) as Array<{ label: string }>;
     return {
       transaction_id: record.externalId,
+      model_version: record.modelVersion,
+      normalized_risk_score: record.riskScore === null ? null : record.riskScore / 100,
       risk_score: record.riskScore,
       risk_level: record.riskLevel,
       decision: record.decision,
@@ -259,14 +361,14 @@ export class TransactionsService {
     };
   }
 
-  private toDetail(record: Transaction) {
+  private toDetail(record: Transaction & { fraudCase?: unknown }) {
     const factors = JSON.parse(record.factors) as Array<{ code: string; label: string; points: number }>;
     return {
       transaction_id: record.externalId,
       user_id: record.userId,
       received_data: {
         timestamp: record.timestamp.toISOString(),
-        amount: record.amount,
+        amount: Number(record.amount),
         currency: record.currency,
         category: record.category,
         merchant: record.merchant,
@@ -275,12 +377,15 @@ export class TransactionsService {
         device_id: record.deviceId,
         operation_type: record.operationType,
         name_orig: record.nameOrig,
-        old_balance_orig: record.oldBalanceOrig,
-        new_balance_orig: record.newBalanceOrig,
+        old_balance_orig: record.oldBalanceOrig === null ? null : Number(record.oldBalanceOrig),
+        new_balance_orig: record.newBalanceOrig === null ? null : Number(record.newBalanceOrig),
         name_dest: record.nameDest,
-        old_balance_dest: record.oldBalanceDest,
-        new_balance_dest: record.newBalanceDest,
+        old_balance_dest: record.oldBalanceDest === null ? null : Number(record.oldBalanceDest),
+        new_balance_dest: record.newBalanceDest === null ? null : Number(record.newBalanceDest),
       },
+      received_at: record.receivedAt.toISOString(),
+      model_version: record.modelVersion,
+      normalized_risk_score: record.riskScore === null ? null : record.riskScore / 100,
       risk_score: record.riskScore,
       risk_level: record.riskLevel,
       decision: record.decision,
@@ -291,6 +396,7 @@ export class TransactionsService {
       reasons: factors.slice(0, 3).map((f) => f.label),
       history_summary: record.historySummary ? JSON.parse(record.historySummary) : null,
       thresholds_applied: JSON.parse(record.thresholdSnapshot),
+      fraud_case: record.fraudCase ?? null,
       analyzed_at: record.createdAt.toISOString(),
     };
   }

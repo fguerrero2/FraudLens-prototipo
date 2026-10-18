@@ -1,186 +1,92 @@
 # FraudLens Backend
 
-API de analisis de fraude para el MVP de FraudLens. Stack: NestJS + TypeScript, Prisma + SQLite, autenticacion por API key (placeholder).
+Monolito modular multi-tenant: NestJS/TypeScript, Prisma y PostgreSQL. Sigue los principios de [fraudlens-arquitectura.md](../fraudlens-arquitectura.md), conservando el stack existente y el motor de riesgo. Web y Expo consumen una API única bajo `/api/v1`.
 
-## Ejecucion local con Docker
-
-Desde este directorio, levantar frontend, backend y PostgreSQL:
+## Inicio local
 
 ```bash
-docker compose up --build
-```
-
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:3000/api/v1`
-- PostgreSQL: `localhost:5433` (protocolo PostgreSQL, no HTTP). Internamente el
-  backend se conecta a `postgres:5432`. El puerto del host puede cambiarse, por
-  ejemplo: `POSTGRES_PORT=55432 docker compose up --build`.
-
-Las migraciones se aplican automaticamente al iniciar el backend. Para cargar los
-datos de demostracion una vez, ejecutar:
-
-```bash
-docker compose exec backend npm run seed
-```
-
-Para detener los servicios se usa `docker compose down`. Los datos persisten en
-el volumen `postgres_data`; si se desea eliminar tambien la base local, usar
-explicitamente `docker compose down -v`.
-
-## Setup
-
-```bash
-npm install
-cp .env.example .env        # ya existe un .env de desarrollo con valores por defecto
-npx prisma migrate dev --name init
-npm run seed                # carga usuarios con historial transaccional de ejemplo
+npm ci
+cp .env.example .env
+npm run prisma:deploy
+npm run build
+npm run seed
 npm run start:dev
 ```
 
-La API queda disponible en `http://localhost:3000/api/v1`.
+Completar las conexiones PostgreSQL y las credenciales de bootstrap antes de ejecutar. El seed exige email y contraseña de al menos 12 caracteres, crea un superadministrador con membresía en la organización inicial y no reemplaza contraseñas existentes. `SEED_DEMO_DATA=true` agrega historiales sintéticos de manera idempotente. La web está en `../Frontend` y la app en `../Frontend/mobile`.
 
-## Deploy (Supabase + Render)
-
-La base de datos vive en Supabase (Postgres administrado); el servidor NestJS corre en Render (Supabase no aloja procesos Node persistentes, solo Postgres/Auth/Storage/Edge Functions).
-
-**1) Base de datos en Supabase**
-1. Crear un proyecto en [supabase.com](https://supabase.com).
-2. Ir a Project Settings → Database → Connection string y copiar:
-   - **Connection pooling** (puerto `6543`, con `?pgbouncer=true`) → va en `DATABASE_URL`.
-   - **Direct connection** (puerto `5432`) → va en `DIRECT_URL` (la necesita Prisma para migrar).
-3. Completar esos valores en `.env`.
-4. Generar las migraciones (la primera vez, contra Postgres):
-   ```bash
-   npx prisma migrate dev --name init
-   npm run seed
-   ```
-
-**2) Servidor en Render**
-1. Subir este repo a GitHub.
-2. En Render: New → Blueprint, apuntar al repo (usa el `render.yaml` incluido) — o New → Web Service manual con:
-   - Build command: `npm install && npm run build`
-   - Start command: `npx prisma migrate deploy && npm run start`
-3. Cargar las variables de entorno (`DATABASE_URL`, `DIRECT_URL`, `CORS_ORIGIN`, `CLIENT_API_KEY`, `ANALYST_API_KEY`, `ADMIN_API_KEY`) con los mismos valores que en `.env`, y `CORS_ORIGIN` apuntando al dominio del frontend desplegado.
-4. Deploy. El tier free de Render duerme tras ~15 min sin trafico: la primera request tras la inactividad puede tardar 30-50s.
-
-**Nota**: `postinstall` corre `prisma generate` automaticamente en cada `npm install`, asi que Render no necesita un paso extra para eso.
-
-## Autenticacion (placeholder del MVP)
-
-Cada request protegido requiere el header `x-api-key`. Los valores por defecto (definidos en `.env`) son:
-
-| Rol | Header `x-api-key` | Puede |
-|---|---|---|
-| Sistema cliente | `client_dev_key_change_me` | `POST /transactions` |
-| Analista de fraude | `analyst_dev_key_change_me` | Consultar transacciones, dashboard, umbrales |
-| Administrador | `admin_dev_key_change_me` | Todo lo anterior + modificar umbrales |
-
-La API key de administrador funciona como superusuario de cualquier ruta. Al modificar umbrales se puede mandar opcionalmente el header `x-actor-name` para identificar quien hizo el cambio (se guarda en el historial de auditoria).
-
-## Endpoints
-
-| Metodo | Ruta | CU | Rol |
-|---|---|---|---|
-| POST | `/transactions` | CU-01 / CU-02 / CU-03 / CU-04 | client |
-| GET | `/transactions` | CU-05 (filtros: `date_from`, `date_to`, `risk_level`, `decision`, `user_id`, `transaction_id`, `sort`, `order`, `page`, `page_size`) | analyst |
-| GET | `/transactions/:transactionId` | CU-06 | analyst |
-| GET | `/dashboard/metrics` | soporte CU-05 (cards del dashboard) | analyst |
-| GET | `/settings/thresholds` | CU-04 | analyst |
-| PUT | `/settings/thresholds` | CU-07 | admin |
-| GET | `/settings/thresholds/history` | CU-07 (auditoria) | admin |
-| GET | `/health` | - | publico |
-
-## Recorrido de demo (seccion 10 del brief)
-
-El seed crea usuarios (`usr_01H8M2`, `usr_01G4P9`, `usr_01J7B3`, `usr_01C2L8`, `usr_01K5T1`, `usr_01E9R4`) con historial habitual: mismo pais, categoria, comercio, dispositivo y franja horaria — los mismos `user_id` que ya aparecen mockeados en el prototipo de dashboard (`Frontend/src/App.jsx`).
-
-**1) Monto por debajo del minimo → aprobado sin ejecutar el modelo (CU-02):**
-```bash
-curl -X POST http://localhost:3000/api/v1/transactions \
-  -H "x-api-key: client_dev_key_change_me" -H "Content-Type: application/json" \
-  -d '{"transaction_id":"trx-demo-01","user_id":"usr_01J7B3","timestamp":"2026-08-26T15:00:00Z","amount":5000,"currency":"ARS","category":"Kiosco","merchant":"Kiosco 24","country":"Argentina","channel":"POS","device_id":"POS-Terminal-1"}'
-```
-
-**2) Transaccion habitual → aprobada por el modelo:**
-```bash
-curl -X POST http://localhost:3000/api/v1/transactions \
-  -H "x-api-key: client_dev_key_change_me" -H "Content-Type: application/json" \
-  -d '{"transaction_id":"trx-demo-02","user_id":"usr_01C2L8","timestamp":"2026-08-26T14:30:00Z","amount":70000,"currency":"ARS","category":"Supermercado","merchant":"Supermercados DIA","country":"Argentina","channel":"POS","device_id":"Android-App-C3"}'
-```
-
-**3) Monto elevado + ubicacion y horario atipicos → revisar:**
-```bash
-curl -X POST http://localhost:3000/api/v1/transactions \
-  -H "x-api-key: client_dev_key_change_me" -H "Content-Type: application/json" \
-  -d '{"transaction_id":"trx-demo-03","user_id":"usr_01G4P9","timestamp":"2026-08-26T03:15:00Z","amount":280000,"currency":"ARS","category":"Viajes","merchant":"Viajes Mundo","country":"Espana","channel":"Web"}'
-```
-
-**4) Anomalia extrema (monto, pais, dispositivo, horario, historial insuficiente) → bloquear:**
-```bash
-curl -X POST http://localhost:3000/api/v1/transactions \
-  -H "x-api-key: client_dev_key_change_me" -H "Content-Type: application/json" \
-  -d '{"transaction_id":"trx-demo-04","user_id":"usr_01K5T1","timestamp":"2026-08-26T04:00:00Z","amount":900000,"currency":"ARS","category":"Importados","merchant":"Global Import Co","country":"Rusia","channel":"E-commerce","device_id":"unknown-device-xyz"}'
-```
-
-## Senales estilo PaySim (campos opcionales)
-
-Ademas de los campos del brief original, `POST /transactions` acepta campos opcionales inspirados en el dataset ["Synthetic Financial Datasets For Fraud Detection" (PaySim)](https://www.kaggle.com/datasets/ealaxi/paysim1) — el mismo que usa el notebook de referencia de Carmen Castro González. Se usan como senales extra del motor de riesgo cuando el sistema cliente los provee (billeteras, transferencias con saldo):
-
-| Campo | Tipo | Analogo en PaySim |
-|---|---|---|
-| `operation_type` | `CASH_IN \| CASH_OUT \| DEBIT \| PAYMENT \| TRANSFER` | `type` |
-| `name_orig` | string | `nameOrig` |
-| `old_balance_orig` / `new_balance_orig` | number | `oldbalanceOrg` / `newbalanceOrig` |
-| `name_dest` | string | `nameDest` |
-| `old_balance_dest` / `new_balance_dest` | number | `oldbalanceDest` / `newbalanceDest` |
-
-Al igual que en PaySim, estas senales solo se activan para `TRANSFER`/`CASH_OUT` (los unicos tipos donde ese dataset registra fraude real):
-
-- **Vaciamiento total de origen**: `old_balance_orig - amount ≈ 0` y `new_balance_orig = 0` → patron clasico de cuenta comprometida.
-- **Saldo destino sin reflejar la operacion**: `old_balance_dest = new_balance_dest = 0` pese a recibir el monto.
-- **Inconsistencia de saldo**: `old_balance_orig - amount ≠ new_balance_orig`.
-- **Transferencia sobre el limite de control**: `amount > 200.000` con `operation_type = TRANSFER` — replica la regla `isFlaggedFraud` de PaySim.
-
-El seed crea un usuario adicional de billetera (`usr_01W3F7`) con historial de transferencias con saldos consistentes, para poder probar estas senales de inmediato:
+Con Docker: definir `BOOTSTRAP_ADMIN_PASSWORD` en `.env`, ejecutar `docker compose up --build` y luego `docker compose exec backend npm run seed`. El esquema se migra con el propietario y la API conecta con `fraudlens_app`, sin SUPERUSER/BYPASSRLS. Para un volumen PostgreSQL anterior, crear el rol sin borrar el volumen:
 
 ```bash
-# Consistente con el historial -> aprobar
-curl -X POST http://localhost:3000/api/v1/transactions \
-  -H "x-api-key: client_dev_key_change_me" -H "Content-Type: application/json" \
-  -d '{"transaction_id":"trx-paysim-01","user_id":"usr_01W3F7","timestamp":"2026-08-26T15:00:00Z","amount":28000,"currency":"ARS","category":"Billetera virtual","merchant":"Wallet P2P","country":"Argentina","channel":"App","device_id":"Android-App-W7","operation_type":"TRANSFER","name_orig":"usr_01W3F7","old_balance_orig":120000,"new_balance_orig":92000,"name_dest":"dest-4821","old_balance_dest":50000,"new_balance_dest":78000}'
-
-# Vaciamiento total + saldo destino sin reflejar el ingreso -> bloquear
-curl -X POST http://localhost:3000/api/v1/transactions \
-  -H "x-api-key: client_dev_key_change_me" -H "Content-Type: application/json" \
-  -d '{"transaction_id":"trx-paysim-02","user_id":"usr_01W3F7","timestamp":"2026-08-26T15:05:00Z","amount":115000,"currency":"ARS","category":"Billetera virtual","merchant":"Wallet P2P","country":"Argentina","channel":"App","device_id":"Android-App-W7","operation_type":"TRANSFER","name_orig":"usr_01W3F7","old_balance_orig":115000,"new_balance_orig":0,"name_dest":"dest-9999","old_balance_dest":0,"new_balance_dest":0}'
-
-# Transferencia sobre el limite de control -> revisar
-curl -X POST http://localhost:3000/api/v1/transactions \
-  -H "x-api-key: client_dev_key_change_me" -H "Content-Type: application/json" \
-  -d '{"transaction_id":"trx-paysim-03","user_id":"usr_01W3F7","timestamp":"2026-08-26T15:10:00Z","amount":250000,"currency":"ARS","category":"Billetera virtual","merchant":"Wallet P2P","country":"Argentina","channel":"App","device_id":"Android-App-W7","operation_type":"TRANSFER","name_orig":"usr_01W3F7","old_balance_orig":300000,"new_balance_orig":50000,"name_dest":"dest-1122","old_balance_dest":20000,"new_balance_dest":270000}'
+docker compose exec postgres psql -U fraudlens -d fraudlens -f /docker-entrypoint-initdb.d/10-app-role.sql
 ```
 
-**Ver el detalle de una transaccion:**
+Web: `http://localhost:5173`; API: `http://localhost:3000/api/v1`; Swagger: `http://localhost:3000/api/docs`; PostgreSQL local: `localhost:5433`.
+
+## Identidad y aislamiento
+
+- Usuarios globales, membresías por tenant, roles con permisos y roles globales independientes.
+- Login por email/contraseña; contraseña con scrypt y salt. Sesiones opacas: access token de 15 minutos y refresh de 7 días con rotación, almacenados como hashes. Logout revoca la sesión.
+- El backend revalida membresía, estado de organización y permisos en cada solicitud. `SUPER_ADMIN` no permite acceder implícitamente a transacciones de empresas ajenas.
+- La organización activa se selecciona mediante `/auth/tenant` y se verifica contra las membresías. No se acepta un tenant arbitrario en headers o payloads de negocio.
+- Cada solicitud de negocio usa una transacción PostgreSQL y `set_config(..., true)`. El contexto termina al hacer commit/rollback, también con conexiones reutilizadas.
+- Filtros por tenant en la aplicación más RLS forzado en transacciones, configuraciones/historial, revisiones, expedientes, auditoría, integraciones, alertas y asignaciones de modelos. FK compuestas impiden que una revisión/alerta/expediente referencie una transacción de otra empresa.
+- Identidad, permisos, sesiones y hashes de credenciales necesitan consultas globales para autenticar antes de determinar el tenant; su acceso solo se expone mediante servicios autorizados.
+- Claves M2M por integración, con permisos acotados; secreto devuelto una sola vez y hash persistido. Las antiguas claves fijas por rol quedan sin efecto.
+- En producción la API rechaza conexiones con SUPERUSER o BYPASSRLS. Ver [infrastructure/runtime-role.sql](infrastructure/runtime-role.sql).
+
+## API
+
+| Ruta | Función / permiso |
+|---|---|
+| `POST /auth/login`, `POST /auth/refresh` | Públicas; limitadas por IP en esta instancia |
+| `GET /auth/me`, `POST /auth/tenant`, `POST /auth/logout` | Sesión humana |
+| `GET/POST /platform/tenants`, `PUT /platform/tenants/:id` | Administración global |
+| `GET/PUT /tenant` | Organización actual, `tenant.read` |
+| `GET/POST /users`, `POST /memberships`, `PUT /memberships/:userId` | Usuarios, membresías y roles del tenant |
+| `GET/POST /roles`, `PUT /roles/:id` | Roles personalizados y permisos |
+| `GET/POST /api-clients`, `PUT /api-clients/:id/revoke` | Integraciones M2M |
+| `POST /transactions` | Ingesta y scoring, `transactions.create` |
+| `GET /transactions`, `GET /transactions/:externalId` | Filtros/paginación y detalle, `transactions.read` |
+| `PUT /transactions/:externalId/review` | Revisión con evidencia, `transactions.review` |
+| `POST/PUT /transactions/:externalId/case` | Expedientes, `transactions.review` |
+| `GET /transactions/cases/list` | Bandeja de expedientes |
+| `GET /dashboard/metrics`, `GET /dashboard/heatmap` | Agregados por tenant, `dashboard.read` |
+| `GET/PUT /settings/thresholds` | Configuración por tenant, `settings.read/update` |
+| `GET /settings/thresholds/history`, `GET /settings/thresholds/audit` | Auditoría, `audit.read` |
+| `GET /alerts`, `PUT /alerts/:id` | Alertas automáticas y seguimiento, `alerts.read/update` |
+| `GET /models`, `GET/PUT /settings/model` | Modelos disponibles y selección por tenant |
+| `GET/POST /platform/models`, `GET /platform/audit` | Registro de modelos y eventos globales |
+| `GET /health` | Pública |
+
+Usuarios humanos envían `Authorization: Bearer <access_token>`; integraciones envían `x-api-key: <secret>`. Los permisos se evalúan centralmente. No se puede suplantar al actor con `x-actor-name` o el campo `analyst`.
+
+Se conservan los nombres de campos y valores de la API anterior: `transaction_id`, `user_id`, `timestamp`, `risk_score` (0–100), `risk_level` en español y `decision: aprobar/revisar/bloquear`. `transaction_id` es idempotente dentro de cada tenant. Los importes y saldos se almacenan como DECIMAL(18,2). Se admiten `latitude`/`longitude` y los campos PaySim: `operation_type`, `name_orig`, `name_dest`, `old_balance_orig`, `new_balance_orig`, `old_balance_dest`, `new_balance_dest`.
+
+## Scoring y ML
+
+El motor heurístico conserva señales de comportamiento y PaySim. El modelo experimental de anomalías se evalúa y promueve mediante los comandos existentes; ver [evaluation/README.md](evaluation/README.md). Se puede registrar un artefacto bajo `ML_ARTIFACT_ROOT` y asignarlo a un tenant. La versión del registro debe coincidir con la del artefacto. Los archivos se incluyen en el despliegue; el servidor no recibe uploads de modelos.
+
+El score determina el nivel de riesgo; los umbrales del tenant determinan la decisión. La transacción conserva factores, snapshot de umbrales y versión utilizada. Un error de scoring deriva a revisión manual y genera alerta. Las revisiones humanas no reemplazan la recomendación automática. El score normalizado **no es una probabilidad calibrada de fraude**; por eso la API publica `normalized_risk_score` y no lo etiqueta como `fraud_probability`. No se inventan métricas de precisión o recall en el dashboard.
+
+El mapa de calor agrega coordenadas a dos decimales, toma los últimos 30 días y devuelve hasta 1.000 celdas, sin descargar todas las transacciones. Las métricas de hoy usan la zona horaria del tenant.
+
+## Migración y comprobaciones
+
+Las migraciones nuevas asignan los registros anteriores a `00000000-0000-4000-8000-000000000001` y crean la organización `default`. No borran transacciones ni historiales. Hacer backup antes de aplicar una migración a datos reales. Los importes previos se redondean a dos decimales al convertirse a DECIMAL.
+
 ```bash
-curl http://localhost:3000/api/v1/transactions/trx-demo-04 -H "x-api-key: analyst_dev_key_change_me"
+npm run build
+npm test
+npm run evaluate
 ```
 
-**Cambiar umbrales (solo admin) y ver que una nueva transaccion usa la config actualizada:**
+Las pruebas cubren sesiones, permisos, cambios de tenant, regresiones de scoring y las migraciones reales con PostgreSQL embebido (PGlite): backfill, RLS sin filtros de aplicación, writes ajenos y limpieza de contexto. La prueba SQL usa un rol sin privilegios de bypass. No requiere Docker ni modifica una base externa.
+
+La exportación de revisiones exige `EVALUATION_TENANT_ID` para no mezclar organizaciones:
+
 ```bash
-curl -X PUT http://localhost:3000/api/v1/settings/thresholds \
-  -H "x-api-key: admin_dev_key_change_me" -H "x-actor-name: Francisco" -H "Content-Type: application/json" \
-  -d '{"review_threshold":50,"block_threshold":80}'
+EVALUATION_TENANT_ID=<uuid> npm run evaluation:export -- /ruta/dataset.jsonl
 ```
 
-## Notas de diseno
-
-- El motor de riesgo (`src/risk`) es una heuristica ponderada y determinista (no ML) sobre desvio de monto, pais/categoria/dispositivo no habituales, horario inusual y frecuencia de operaciones, mas las senales opcionales estilo PaySim descriptas arriba — cumple el alcance del MVP (seccion 9: sin entrenamiento automatico ni modelos avanzados).
-- Los rangos de nivel de riesgo (bajo/medio/alto/critico) se recalculan a partir de los umbrales configurados, no estan hardcodeados.
-- Cada transaccion persiste el snapshot de umbrales vigentes al momento del analisis, para que cambios posteriores de configuracion no alteren resultados historicos.
-- Un error inesperado en el calculo de riesgo nunca aprueba silenciosamente: la transaccion queda con `status: "analisis_no_disponible"` y `decision: "revisar"`.
-
-## Revisión humana y evaluación reproducible
-
-El detalle de una transacción permite registrar fraude confirmado, operación legítima o revisión pendiente con analista y evidencia. Cada revisión se agrega al historial, separada de la recomendación automática. Aplicar las migraciones con `npm run prisma:deploy`; Docker lo hace al iniciar el backend.
-
-`npm test` verifica las regresiones del motor y la revisión. `npm run evaluate` ejecuta la comparación de reglas y anomalías sobre datos sintéticos. Protocolo, formato de datos y resultados en [evaluation/README.md](evaluation/README.md). El modelo experimental y los umbrales ajustados no se aplican automáticamente al servidor.
+Guía de despliegue gratuito: [DEPLOYMENT.md](DEPLOYMENT.md). Redis y un bucket S3 no son dependencias obligatorias del MVP: las sesiones persisten en PostgreSQL y los artefactos viajan con el build. Se pueden incorporar cuando exista necesidad de caché distribuida o administración remota de modelos.

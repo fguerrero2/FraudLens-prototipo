@@ -4,3 +4,6 @@ dist
 .env
 *.log
 .DS_Store
+
+mobile/*
+!mobile/shared/

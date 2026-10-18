@@ -1,0 +1,15 @@
+{
+  "domain": "transferencias",
+  "source": "../Datasets/transferencias/raw/PS_20174392719_1491204439457_log.csv",
+  "protocol": "Chronological 60/20/20 split; test is untouched during training and threshold selection.",
+  "counts": {
+    "train": 3817572,
+    "validation": 1272524,
+    "test": 1272524
+  },
+  "fraud": {
+    "train": 3189,
+    "validation": 770,
+    "test": 4254
+  }
+}

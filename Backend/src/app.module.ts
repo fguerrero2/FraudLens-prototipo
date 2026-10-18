@@ -1,7 +1,12 @@
+import { AlertsModule } from './alerts/alerts.module';
+import { MlModule } from './ml/ml.module';
+import { AuthModule } from './auth/auth.module';
+import { TenantsModule } from './tenants/tenants.module';
+import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ApiKeyGuard } from './common/guards/api-key.guard';
+import { AuthGuard } from './common/guards/auth.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthController } from './health/health.controller';
@@ -14,6 +19,10 @@ import { TransactionsModule } from './transactions/transactions.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    AuthModule,
+    TenantsModule,
+    AlertsModule,
+    MlModule,
     RiskModule,
     SettingsModule,
     TransactionsModule,
@@ -21,7 +30,8 @@ import { TransactionsModule } from './transactions/transactions.module';
   ],
   controllers: [HealthController],
   providers: [
-    { provide: APP_GUARD, useClass: ApiKeyGuard },
+    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
   ],
 })

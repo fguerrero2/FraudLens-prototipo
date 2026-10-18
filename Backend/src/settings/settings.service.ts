@@ -1,3 +1,4 @@
+import { currentTenant, tenantContext } from '../common/context/tenant-context';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateThresholdsDto } from './dto/update-thresholds.dto';
@@ -15,16 +16,17 @@ export class SettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getThresholds() {
-    const existing = await this.prisma.thresholdConfig.findUnique({ where: { id: 1 } });
+    const existing = await this.prisma.thresholdConfig.findUnique({ where: { tenantId: currentTenant() } });
     if (existing) return existing;
-    return this.prisma.thresholdConfig.create({ data: { id: 1, ...DEFAULT_THRESHOLDS, updatedBy: 'seed' } });
+    return this.prisma.thresholdConfig.upsert({ where: { tenantId: currentTenant() }, update: {}, create: { tenantId: currentTenant(), ...DEFAULT_THRESHOLDS, updatedBy: 'seed' } });
   }
 
   async getHistory() {
-    return this.prisma.thresholdConfigHistory.findMany({ orderBy: { changedAt: 'desc' }, take: 50 });
+    return this.prisma.thresholdConfigHistory.findMany({ where: { tenantId: currentTenant() }, orderBy: { changedAt: 'desc' }, take: 50 });
   }
 
   async updateThresholds(dto: UpdateThresholdsDto, actor: string) {
+    await tenantContext.getStore()!.db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${currentTenant() + ':settings'}, 0))`;
     const current = await this.getThresholds();
 
     const merged: Thresholds = {
@@ -44,8 +46,13 @@ export class SettingsService {
       throw new BadRequestException('El umbral de bloqueo debe ser mayor que el umbral de revision');
     }
 
+    if (dto.timezone) {
+      const [zone] = await tenantContext.getStore()!.db.$queryRaw<Array<{ valid: boolean }>>`SELECT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = ${dto.timezone}) AS valid`;
+      if (!zone.valid) throw new BadRequestException('Zona horaria desconocida');
+    }
     await this.prisma.thresholdConfigHistory.create({
       data: {
+        tenantId: currentTenant(),
         minAmountEnabled: current.minAmountEnabled,
         minAmount: current.minAmount,
         reviewThreshold: current.reviewThreshold,
@@ -54,9 +61,27 @@ export class SettingsService {
       },
     });
 
-    return this.prisma.thresholdConfig.update({
-      where: { id: 1 },
-      data: { ...merged, updatedBy: actor },
+    const updated = await this.prisma.thresholdConfig.update({
+      where: { tenantId: currentTenant() },
+      data: { ...merged, timezone: dto.timezone ?? current.timezone, defaultCurrency: dto.default_currency ?? current.defaultCurrency, updatedBy: actor },
     });
+    {
+      await this.prisma.auditLog.create({
+        data: {
+          tenantId: currentTenant(),
+          actor,
+          actorRole: 'admin',
+          action: 'thresholds.updated',
+          resourceType: 'threshold_config',
+          outcome: 'success',
+          metadata: JSON.stringify({ previous: current, updated }),
+        },
+      });
+    }
+    return updated;
+  }
+
+  async getAudit(limit = 100) {
+    return this.prisma.auditLog.findMany({ where: { tenantId: currentTenant() }, orderBy: { createdAt: 'desc' }, take: Math.min(limit, 500) });
   }
 }

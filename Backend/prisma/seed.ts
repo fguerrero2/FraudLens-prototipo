@@ -1,3 +1,5 @@
+import { hashPassword } from '../src/auth/credentials';
+import { ROLE_PERMISSIONS } from '../src/auth/role-presets';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -118,13 +120,32 @@ function pick<T>(arr: T[]): T {
 }
 
 async function main() {
+  const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  if (!email || !password || password.length < 12) throw new Error('Defina BOOTSTRAP_ADMIN_EMAIL y BOOTSTRAP_ADMIN_PASSWORD (12 caracteres mínimo)');
+  const tenantId = '00000000-0000-4000-8000-000000000001';
+  await prisma.tenant.upsert({ where: { id: tenantId }, update: {}, create: { id: tenantId, name: 'Organización inicial', slug: 'default' } });
+  const admin = await prisma.user.upsert({ where: { email }, update: {}, create: { email, name: 'Administrador', passwordHash: hashPassword(password) } });
+  await prisma.platformUserRole.upsert({ where: { userId_role: { userId: admin.id, role: 'SUPER_ADMIN' } }, update: {}, create: { userId: admin.id, role: 'SUPER_ADMIN' } });
+  for (const [name, codes] of Object.entries(ROLE_PERMISSIONS)) {
+    const role = await prisma.role.upsert({ where: { tenantId_name: { tenantId, name } }, update: {}, create: { tenantId, name } });
+    for (const code of codes) {
+      const permission = await prisma.permission.upsert({ where: { code }, update: {}, create: { code, description: code } });
+      await prisma.rolePermission.upsert({ where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } }, update: {}, create: { roleId: role.id, permissionId: permission.id } });
+    }
+    if (name === 'TENANT_ADMIN') await prisma.tenantMembership.upsert({ where: { tenantId_userId: { tenantId, userId: admin.id } }, update: {}, create: { tenantId, userId: admin.id, roleId: role.id } });
+  }
+  // All business seed writes use a transaction-local RLS context, including with a non-owner role.
+  await prisma.$transaction(async prisma => {
+  await prisma.$queryRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
   console.log('Sembrando configuracion de umbrales por defecto...');
   await prisma.thresholdConfig.upsert({
-    where: { id: 1 },
+    where: { tenantId },
     update: {},
-    create: { id: 1, ...DEFAULT_THRESHOLDS, updatedBy: 'seed' },
+    create: { tenantId, ...DEFAULT_THRESHOLDS, updatedBy: 'seed' },
   });
 
+  if (process.env.SEED_DEMO_DATA !== 'true') return;
   console.log('Sembrando transacciones historicas...');
   let created = 0;
 
@@ -160,9 +181,11 @@ async function main() {
         };
       }
 
+      if (await prisma.transaction.findUnique({ where: { tenantId_externalId: { tenantId, externalId: `seed-${user.userId}-${i}` } } })) continue;
       await prisma.transaction.create({
         data: {
-          externalId: `seed-${user.userId}-${i}-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+          tenantId,
+          externalId: `seed-${user.userId}-${i}`,
           userId: user.userId,
           timestamp,
           amount,
@@ -190,6 +213,7 @@ async function main() {
 
   console.log(`Listo: ${created} transacciones historicas creadas para ${USERS.length} usuarios.`);
   console.log('Usuarios disponibles para probar la API:', USERS.map((u) => u.userId).join(', '));
+  }, { timeout: 60000 });
 }
 
 main()

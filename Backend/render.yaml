@@ -1,32 +1,21 @@
-databases:
-  - name: fraudlens-db
-    plan: free
-    databaseName: fraudlens
-    user: fraudlens
-
+# Import this file as a Render Blueprint. PostgreSQL is supplied separately by Neon.
 services:
   - type: web
     name: fraudlens-backend
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npx prisma migrate deploy && npm run start
+    rootDir: Backend
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run prisma:deploy && npm run start
+    healthCheckPath: /api/v1/health
     envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22
       - key: DATABASE_URL
-        fromDatabase:
-          name: fraudlens-db
-          property: connectionString
+        sync: false
       - key: DIRECT_URL
-        fromDatabase:
-          name: fraudlens-db
-          property: connectionString
-      - key: PORT
-        value: 3000
+        sync: false
       - key: CORS_ORIGIN
-        sync: false
-      - key: CLIENT_API_KEY
-        sync: false
-      - key: ANALYST_API_KEY
-        sync: false
-      - key: ADMIN_API_KEY
         sync: false

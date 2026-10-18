@@ -11,6 +11,7 @@ services:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/local-init.sql:/docker-entrypoint-initdb.d/10-app-role.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraudlens -d fraudlens"]
       interval: 5s
@@ -22,15 +23,15 @@ services:
     build:
       context: .
     environment:
-      DATABASE_URL: postgresql://fraudlens:fraudlens_dev_password@postgres:5432/fraudlens
+      DATABASE_URL: postgresql://fraudlens_app:fraudlens_local_app_password@postgres:5432/fraudlens
       DIRECT_URL: postgresql://fraudlens:fraudlens_dev_password@postgres:5432/fraudlens
       PORT: 3000
       CORS_ORIGIN: http://localhost:5173
-      CLIENT_API_KEY: client_dev_key_change_me
-      ANALYST_API_KEY: analyst_dev_key_change_me
-      ADMIN_API_KEY: admin_dev_key_change_me
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
     ports:
-      - "3000:3000"
+      - "0.0.0.0:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy

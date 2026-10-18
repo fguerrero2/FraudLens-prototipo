@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
+import { MlModel } from '@prisma/client';
+
 import {
   HOUR_TOLERANCE,
   MIN_HISTORY_FOR_CONFIDENCE,
@@ -13,6 +15,7 @@ import {
   VELOCITY_WINDOW_MINUTES,
 } from './risk.constants';
 import { HistoricalTransaction, HistorySummary, RiskFactor, RiskResult, TransactionSignalInput } from './risk.types';
+import { AnomalyModel, BehaviorFeatures, loadConfiguredAnomalyModel } from './anomaly-model';
 
 function mean(values: number[]): number {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
@@ -26,6 +29,19 @@ function stddev(values: number[], avg: number): number {
 
 @Injectable()
 export class RiskService {
+  private readonly anomalyModel: AnomalyModel | null;
+
+  constructor(@Optional() @Inject('MODEL_ARTIFACT_PATH') path?: string) {
+    this.anomalyModel = path === 'heuristic' ? null : path ? AnomalyModel.load(path) : loadConfiguredAnomalyModel();
+  }
+  get modelVersion(): string { return this.anomalyModel?.version ?? 'heuristic-v1'; }
+  forModel(model: MlModel): RiskService {
+    if (model.status !== 'active') throw new Error('El modelo seleccionado no está activo');
+    const engine = new RiskService(model.modelType === 'heuristic' ? 'heuristic' : model.artifactPath ?? undefined);
+    if (engine.modelVersion !== model.version) throw new Error('La versión registrada no coincide con el artefacto');
+    return engine;
+  }
+
   calculate(input: TransactionSignalInput, history: HistoricalTransaction[]): RiskResult {
     history = history.filter(h => h.timestamp < input.timestamp);
     const historyCount = history.length;
@@ -39,12 +55,13 @@ export class RiskService {
         },
         ...computePaySimFactors(input),
       ];
-      const score = factors.reduce((sum, f) => sum + f.points, 0);
-      factors.sort((a, b) => b.points - a.points);
+      const factorsWithAnomaly = this.addAnomalyFactor(input, history, factors, 0);
+      const score = factorsWithAnomaly.reduce((sum, f) => sum + f.points, 0);
+      factorsWithAnomaly.sort((a, b) => b.points - a.points);
       return {
         score: clamp(score),
         insufficientHistory: true,
-        factors,
+        factors: factorsWithAnomaly,
         historySummary: emptyHistorySummary(),
       };
     }
@@ -116,6 +133,9 @@ export class RiskService {
       factors.push({ code: 'habitual_pattern', label: 'Patron habitual del usuario', points: 0 });
     }
 
+    const anomalyRecentCount = history.filter((transaction) => input.timestamp.getTime() - transaction.timestamp.getTime() <= 60 * 60_000).length;
+    this.addAnomalyFactor(input, history, factors, anomalyRecentCount);
+
     const rawScore = factors.reduce((sum, f) => sum + f.points, 0);
 
     factors.sort((a, b) => b.points - a.points);
@@ -133,6 +153,33 @@ export class RiskService {
         familiar_devices: [...familiarDevices],
       },
     };
+  }
+
+  private addAnomalyFactor(
+    input: TransactionSignalInput,
+    history: HistoricalTransaction[],
+    factors: RiskFactor[],
+    recentCount: number,
+  ): RiskFactor[] {
+    if (!this.anomalyModel) return factors;
+    const profile = history.slice(-200);
+    const average = profile.length ? mean(profile.map(transaction => transaction.amount)) : input.amount;
+    const features: BehaviorFeatures = {
+      log_amount: Math.log1p(input.amount),
+      log_amount_to_user_average: Math.log1p(input.amount / Math.max(average, 1)),
+      log_recent_count: Math.log1p(recentCount),
+      unfamiliar_country: Number(profile.length > 0 && !profile.some(transaction => transaction.country === input.country)),
+      new_device: Number(!!input.deviceId && profile.some(transaction => transaction.deviceId) && !profile.some(transaction => transaction.deviceId === input.deviceId)),
+    };
+    const score = this.anomalyModel.score(features, input.currency);
+    if (this.anomalyModel.isAnomalous(score)) {
+      factors.push({
+        code: 'statistical_anomaly',
+        label: `Patron estadisticamente atipico (distancia ${score.toFixed(2)})`,
+        points: Math.min(30, Math.max(1, Math.round((score / this.anomalyModel.threshold) * 15))),
+      });
+    }
+    return factors;
   }
 }
 

@@ -1,11 +1,21 @@
-import { test } from 'node:test';
+import { tenantContext } from '../src/common/context/tenant-context';
+import { test as nodeTest } from 'node:test';
 import * as assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { validate } from 'class-validator';
 import { RiskService } from '../src/risk/risk.service';
 import { TransactionsService } from '../src/transactions/transactions.service';
 import { ReviewTransactionDto } from '../src/transactions/dto/review-transaction.dto';
 import { isLowAmountExempt, decideWithVelocity } from '../src/transactions/risk-policy';
 import { metrics, StandardizedDistanceModel } from '../evaluation/metrics';
+import { AnomalyModel, BEHAVIOR_FEATURE_NAMES } from '../src/risk/anomaly-model';
+
+const tenantId = '00000000-0000-4000-8000-000000000001';
+function test(name: string, fn: (...args: any[]) => any) {
+  return nodeTest(name, t => tenantContext.run({ identity: { tenantId, actor: 'test', permissions: [], platformRoles: [] }, db: { $queryRaw: async () => [] } as any }, () => fn(t)));
+}
 
 const thresholds = { minAmountEnabled: true, minAmount: 10000, reviewThreshold: 60, blockThreshold: 85 };
 const input = { transactionId: 'a', timestamp: new Date('2026-09-01T12:00:00Z'), amount: 20000, category: 'food', merchant: 'shop', country: 'AR', deviceId: 'known' };
@@ -33,7 +43,7 @@ test('Sixth small operation is reviewed; exemption still applies below burst thr
 
 function mockService(recentCount = 0) {
   const calls: any = {};
-  const prisma: any = { transaction: {
+  const prisma: any = { tenantModel: { findUnique: async () => null }, alert: { create: async () => ({}) }, auditLog: { create: async () => ({}) }, transaction: {
     findUnique: async () => null,
     count: async args => { calls.count = args; return recentCount; },
     findMany: async args => { calls.history = args; return history; },
@@ -48,7 +58,7 @@ function payload(amount = 20000) {
 
 test('Database profile and velocity queries restrict user, currency and past time', async () => {
   const { service, calls } = mockService(); const dto = payload(); await service.create(dto);
-  assert.deepEqual(calls.history.where, { userId: 'u', currency: 'ARS', timestamp: { lt: new Date(dto.timestamp) } });
+  assert.deepEqual(calls.history.where, { tenantId, userId: 'u', currency: 'ARS', timestamp: { lt: new Date(dto.timestamp) } });
   assert.equal(calls.count.where.currency, 'ARS');
   assert.deepEqual(calls.count.where.timestamp.lt, new Date(dto.timestamp));
   assert.equal(calls.count.where.timestamp.lt - calls.count.where.timestamp.gte, 3600000);
@@ -112,4 +122,16 @@ test('Anomaly model learns only fit data and scoring never changes parameters', 
   const snapshot = JSON.stringify(model.snapshot());
   assert.ok(model.score([100, 100]) > model.score([2, 3]));
   assert.equal(JSON.stringify(model.snapshot()), snapshot);
+});
+
+test('Promoted anomaly artifact flags an atypical transaction', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fraudlens-'));
+  const path = join(directory, 'model.json');
+  writeFileSync(path, JSON.stringify({
+    version: 'behavior-anomaly-v1', feature_names: [...BEHAVIOR_FEATURE_NAMES], threshold: 1,
+    models_by_currency: { ARS: { means: [1, 1, 0, 0, 0], scales: [1, 1, 1, 1, 1] } },
+  }));
+  const model = AnomalyModel.load(path);
+  assert.equal(model.isAnomalous(model.score({ log_amount: 1, log_amount_to_user_average: 1, log_recent_count: 0, unfamiliar_country: 0, new_device: 0 }, 'ARS')), false);
+  assert.equal(model.isAnomalous(model.score({ log_amount: 5, log_amount_to_user_average: 1, log_recent_count: 0, unfamiliar_country: 0, new_device: 0 }, 'ARS')), true);
 });

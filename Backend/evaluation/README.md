@@ -13,6 +13,27 @@ npm run evaluate
 
 Genera `evaluation/results/report.json` y `predictions.jsonl`. El conjunto sintético tiene 1.800 eventos, semilla 20260910 y etiquetas asignadas por escenarios antes de calcular los puntajes. El informe incluye hash SHA-256 del conjunto, parámetros del modelo y límites temporales. Dos ejecuciones con los mismos datos y código producen los mismos archivos.
 
+Para promover el modelo estadistico al backend despues de evaluar un dataset anonimizado:
+
+```sh
+npm run evaluate -- /ruta/dataset-normalizado.jsonl evaluation/results/credit-card
+npm run model:promote -- evaluation/results/credit-card/report.json evaluation/results/fraud-model.json
+FRAUD_MODEL_PATH=./evaluation/results/fraud-model.json npm run start:dev
+```
+
+El artefacto se entrena con el 60% cronologico, ajusta el umbral con el 20% de validacion y nunca usa las etiquetas del 20% de test. El servidor solo infiere y conserva el motor heuristico como fallback si `FRAUD_MODEL_PATH` no esta configurada.
+
+Los CSV descargados de Kaggle deben convertirse a JSONL normalizado antes de evaluar. En los archivos presentes, entrenamiento usa `id`, `Amount` y `Class`; validacion usa `transaction_id`, `amount` y `is_fraud`; test usa `trans_num`, `amt` e `is_fraud`. Los timestamps se generan de forma monotona por particion porque entrenamiento y validacion no incluyen fecha utilizable en el esquema actual. Los campos de contexto que no existan se dejan vacios o con un valor constante, sin inventar historial. Los tres enlaces de referencia son: [entrenamiento](https://www.kaggle.com/datasets/nelgiriyewithana/credit-card-fraud-detection-dataset-2023), [validacion](https://www.kaggle.com/datasets/miadul/credit-card-fraud-detection-dataset) y [test](https://www.kaggle.com/datasets/kartik2112/fraud-detection).
+
+En este repositorio, el comando reproducible es:
+
+```sh
+npm run prepare:datasets -- ../Datasets/entrenamiento/creditcard_2023.csv ../Datasets/validacion/credit_card_fraud_10k.csv ../Datasets/test/fraudTest.csv evaluation/results/real-datasets
+NODE_OPTIONS=--max-old-space-size=8192 npm run evaluate:datasets -- evaluation/results/real-datasets/train.jsonl evaluation/results/real-datasets/validation.jsonl evaluation/results/real-datasets/test.jsonl evaluation/results/real-datasets/report.json
+```
+
+La corrida actual produjo F1 de prueba `0.0113` y no debe promoverse al backend. Las variables compartidas entre los tres CSV pierden demasiada señal (pais/dispositivo son constantes en entrenamiento y test); antes de desplegar hay que entrenar con features compatibles entre particiones o mantener el fallback heuristico.
+
 Para evaluar otro conjunto:
 
 ```sh
@@ -26,7 +47,7 @@ Cada línea es un objeto JSON con `transactionId`, `userId`, `timestamp` ISO, `a
 Para extraer eventos y sus últimas revisiones de la base configurada en DATABASE_URL:
 
 ```sh
-npm run evaluation:export -- /ruta/dataset.jsonl
+EVALUATION_TENANT_ID=<uuid> npm run evaluation:export -- /ruta/dataset.jsonl
 ```
 
 La exportación es de solo lectura, incluye los eventos pendientes para reconstruir el historial y no sobrescribe un archivo existente. Contiene identificadores y datos de transacciones: usar datos sintéticos o anonimizados para publicar el trabajo. Las revisiones no constituyen verdad infalible y los casos que decide revisar un analista pueden sesgar la muestra.

@@ -1,0 +1,13 @@
+{
+  "umbral_bloqueo": "Block threshold",
+  "umbral_revision": "Review threshold",
+  "riesgo_bajo": "Low risk",
+  "monto_minimo": "Minimum amount",
+  "error_modelo": "Model error",
+  "frecuencia_elevada": "High frequency",
+  "thresholds.updated": "Thresholds updated",
+  "alert.updated": "Alert updated",
+  "model.changed": "Model changed",
+  "tenant.created": "Organization created",
+  "tenant.updated": "Organization updated"
+}

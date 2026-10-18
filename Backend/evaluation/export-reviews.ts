@@ -5,7 +5,12 @@ const prisma = new PrismaClient();
 async function main() {
   const path = process.argv[2];
   if (!path) throw new Error('Usage: npm run evaluation:export -- /path/dataset.jsonl');
-  const records = await prisma.transaction.findMany({ orderBy: [{ timestamp: 'asc' }, { externalId: 'asc' }], include: { reviews: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 1 } } });
+  const tenantId = process.env.EVALUATION_TENANT_ID;
+  if (!tenantId || !/^[0-9a-f-]{36}$/i.test(tenantId)) throw new Error('Defina EVALUATION_TENANT_ID para exportar una sola organización');
+  const records = await prisma.$transaction(async db => {
+    await db.$queryRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+    return db.transaction.findMany({ where: { tenantId }, orderBy: [{ timestamp: 'asc' }, { externalId: 'asc' }], include: { reviews: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 1 } } });
+  });
   const rows = records.map(row => ({ transactionId: row.externalId, userId: row.userId, currency: row.currency,
     timestamp: row.timestamp, amount: row.amount, category: row.category, merchant: row.merchant, country: row.country, deviceId: row.deviceId,
     operationType: row.operationType, oldBalanceOrig: row.oldBalanceOrig, newBalanceOrig: row.newBalanceOrig,

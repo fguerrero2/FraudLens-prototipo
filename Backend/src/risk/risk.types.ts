@@ -27,6 +27,7 @@ export interface TransactionSignalInput {
   category: string;
   merchant: string;
   country: string;
+  currency?: string | null;
   deviceId?: string | null;
   // Senales opcionales estilo PaySim (presentes solo si el cliente las envia).
   operationType?: string | null;
