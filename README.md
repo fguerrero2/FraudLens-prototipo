@@ -1,12 +1,13 @@
 # FraudLens-prototipo
 
 
-Listo. Creé y levanté correctamente:
+Estructura:
 - Frontend Vite servido por Nginx: http://localhost:5173
 - Backend NestJS: http://localhost:3000/api/v1
 - PostgreSQL Docker: localhost:5433
 - Comunicación interna backend → PostgreSQL: postgres:5432
 - Proxy frontend → backend mediante /api/v1
+- 
 Los tres contenedores están activos y saludables. También verifiqué el endpoint de salud tanto directo como a través del frontend.
 Archivos principales:
 - [compose.yaml](/Users/franciscoguerrero/VsCodeProjects/FraudLens-prototipo/Backend/compose.yaml)
@@ -14,6 +15,7 @@ Archivos principales:
 - [Dockerfile frontend](/Users/franciscoguerrero/VsCodeProjects/FraudLens-prototipo/Frontend/Dockerfile)
 - [nginx.conf](/Users/franciscoguerrero/VsCodeProjects/FraudLens-prototipo/Frontend/nginx.conf)
 PostgreSQL usa 5433 en el host porque ya existe otro contenedor llamado fraudlens-postgres ocupando 5432.
+
 Comandos útiles:
 cd /Users/franciscoguerrero/VsCodeProjects/FraudLens-prototipo/Backend
 
