@@ -330,3 +330,19 @@ model AuthEvent {
   createdAt DateTime @default(now())
   @@index([createdAt])
 }
+
+// Historial global (append-only) de altas, cambios y bajas de organizaciones y
+// usuarios, y de las consultas/exportaciones del reporte de organizaciones.
+model PlatformAuditLog {
+  id String @id @default(uuid()) @db.Uuid
+  actor String
+  actorRole String
+  action String
+  resourceType String
+  resourceId String?
+  tenantId String? @db.Uuid
+  metadata Json @default("{}")
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+  @@index([tenantId, createdAt])
+}

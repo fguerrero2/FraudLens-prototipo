@@ -43,5 +43,12 @@
 "Falta autenticación Bearer":"Bearer authentication required",
 "Permisos insuficientes":"Insufficient permissions",
 "Requiere rol de plataforma":"Platform role required",
-"Seleccione una organización":"Select an organization"
+"Seleccione una organización":"Select an organization",
+"Organización inexistente":"Organization not found",
+"El Administrador ya tiene acceso a todas las organizaciones":"The Administrator already has access to every organization",
+"Indique nombre y contraseña inicial para el nuevo usuario":"Enter a name and initial password for the new user",
+"Administrador de organización inexistente":"Organization admin not found",
+"Solo el Administrador puede asignar el rol de administrador de organización":"Only the Administrator can assign the organization admin role",
+"Miembro inexistente":"Member not found",
+"Solo el Administrador puede modificar a un administrador de organización":"Only the Administrator can change an organization admin"
 }

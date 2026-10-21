@@ -1,4 +1,4 @@
-# Import this file as a Render Blueprint. PostgreSQL is supplied separately by Neon.
+# Import this file as a Render Blueprint. PostgreSQL is supplied separately by Supabase.
 services:
   - type: web
     name: fraudlens-backend

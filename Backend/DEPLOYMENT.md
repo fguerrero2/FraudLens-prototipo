@@ -1,6 +1,12 @@
 # Publicación del MVP
 
-Los límites de los planes gratuitos cambian; confirmarlos en las páginas oficiales antes de crear los recursos. El código queda preparado; no se crearon recursos ni se publicó desde esta sesión.
+Los límites de los planes gratuitos cambian; confirmarlos en las páginas oficiales antes de crear recursos. Supabase ya tiene las migraciones aplicadas y el rol `fraudlens_app` creado. La API en Render y la web en Vercel todavía requieren configuración y despliegue.
+
+## Restricción de costos y alcance
+
+FraudLens es un proyecto universitario y el despliegue debe mantenerse en opciones gratuitas: **Render Free, Supabase Free, Vercel Hobby y las cuotas gratuitas de Expo/EAS**. No se autoriza activar pruebas pagas, actualizar planes, agregar complementos pagos ni crear recursos que generen cargos.
+
+Antes de crear o modificar un recurso, verificar su plan y costo. Si una cuota gratuita no alcanza, una función requiere un plan pago o aparece un costo, detener esa operación y pedir una decisión al equipo; no cambiar de plan ni continuar con cargos automáticamente. Mantener aprobación humana para acciones de escritura en Supabase y para cambios o despliegues de producción mediante MCP. La automatización debe fallar de forma segura ante falta de cuota y explicar qué paso quedó pendiente.
 
 ## Servicios
 
@@ -11,7 +17,7 @@ Los límites de los planes gratuitos cambian; confirmarlos en las páginas ofici
 | Web | Vercel Hobby | Raíz `Frontend`, build `npm run build`, salida `dist` |
 | Móvil | Expo / EAS | Proyecto `Frontend/mobile`; APK Android para distribución interna |
 
-Render Free suspende la API después de 15 minutos de inactividad y la reactivación puede tardar cerca de un minuto; su filesystem es efímero. Supabase y Vercel también tienen cuotas y condiciones de inactividad propias. Vercel Hobby está orientado a uso personal/no comercial; confirmar sus términos para el uso previsto. Esta combinación sirve para demos y baja carga, no ofrece disponibilidad continua ni reemplaza backups. [Render Free](https://render.com/docs/free), [Supabase pricing](https://supabase.com/pricing), [Vercel pricing](https://vercel.com/pricing).
+Render Free puede suspender la API por inactividad y su filesystem es efímero. Supabase, Vercel y Expo/EAS tienen cuotas y condiciones propias que pueden cambiar. Esta combinación sirve para demos y baja carga; no ofrece disponibilidad continua ni reemplaza backups. Confirmar los límites y términos vigentes antes de cada despliegue. [Render Free](https://render.com/docs/free), [Supabase pricing](https://supabase.com/pricing), [Vercel pricing](https://vercel.com/pricing), [Expo pricing](https://expo.dev/pricing).
 
 La web Vite se publica como contenido estático en Vercel. [Guía de Vite en Vercel](https://vercel.com/docs/frameworks/frontend/vite). Supabase proporciona PostgreSQL administrado; usar el pooler de sesión para Prisma Migrate y el transaccional para la API. [Conexiones PostgreSQL de Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres).
 
@@ -40,7 +46,7 @@ Importar el Blueprint `Backend/render.yaml` (indicar esa ruta en Render), o crea
 - Health: `/api/v1/health`.
 - `NODE_ENV=production`, `NODE_VERSION=22`.
 - `DATABASE_URL`: rol de runtime; `DIRECT_URL`: propietario de migraciones.
-- `CORS_ORIGIN`: origen exacto de la web, por ejemplo `https://fraudlens.pages.dev`. Varios orígenes se separan con comas; no se usa wildcard.
+- `CORS_ORIGIN`: origen exacto de la web de Vercel, por ejemplo `https://<proyecto>.vercel.app`. Varios orígenes se separan con comas; no se usa wildcard.
 
 Las migraciones usan `DIRECT_URL`. Los modelos opcionales se incluyen en `Backend/models` durante el build; no depender de archivos subidos al filesystem efímero. Si se usa `FRAUD_MODEL_PATH`, apuntar a un archivo incluido. El entrenamiento y la promoción se ejecutan fuera de la instancia gratuita.
 
