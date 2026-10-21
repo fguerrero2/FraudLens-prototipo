@@ -14,7 +14,7 @@ import { AnomalyModel, BEHAVIOR_FEATURE_NAMES } from '../src/risk/anomaly-model'
 
 const tenantId = '00000000-0000-4000-8000-000000000001';
 function test(name: string, fn: (...args: any[]) => any) {
-  return nodeTest(name, t => tenantContext.run({ identity: { tenantId, actor: 'test', permissions: [], platformRoles: [] }, db: { $queryRaw: async () => [] } as any }, () => fn(t)));
+  return nodeTest(name, t => tenantContext.run({ identity: { tenantId, actor: 'test', permissions: [], platformRoles: [] }, db: { $queryRaw: async () => [], $executeRaw: async () => 0 } as any }, () => fn(t)));
 }
 
 const thresholds = { minAmountEnabled: true, minAmount: 10000, reviewThreshold: 60, blockThreshold: 85 };
