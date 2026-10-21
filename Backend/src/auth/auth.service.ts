@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword, hashToken, token, verifyPassword } from './credentials';
-import { Identity } from '../common/context/tenant-context';
+import { Identity, SUPER_ADMIN, TENANT_ADMIN } from '../common/context/tenant-context';
 
 @Injectable()
 export class AuthService {
@@ -55,7 +55,7 @@ export class AuthService {
 
   async login(email: string, password: string) {
     const db = this.prisma.identity;
-    const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() }, include: { memberships: { where: { status: 'active', tenant: { status: 'active' } } } } });
+    const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() }, include: { platformRoles: true, memberships: { where: { status: 'active', tenant: { status: 'active' } } } } });
     // Do comparable password work even when the email is unknown.
     const valid = verifyPassword(password, user?.passwordHash ?? hashPassword('invalid-password'));
     if (!user || !valid || user.status !== 'active') {
@@ -63,7 +63,7 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
     await db.authEvent.create({ data: { action: 'login.success', userId: user.id } });
-    const tenantId = user.memberships.length === 1 ? user.memberships[0].tenantId : null;
+    const tenantId = !user.platformRoles.some(r => r.role === SUPER_ADMIN) && user.memberships.length === 1 ? user.memberships[0].tenantId : null;
     const result = await this.issue(user.id, tenantId);
     return { ...result, ...(await this.profile(user.id, tenantId)) };
   }
@@ -86,32 +86,47 @@ export class AuthService {
     const session = await this.prisma.identity.session.findUnique({ where: { tokenHash: hashToken(access) }, include: { user: { include: { platformRoles: true } } } });
     if (!session || session.revokedAt || session.expiresAt <= new Date() || session.user.status !== 'active') throw new UnauthorizedException('Sesión inválida o vencida');
     let permissions: string[] = [];
+    let roleName: string | undefined;
     let tenantId = session.tenantId ?? undefined;
+    const platformRoles = session.user.platformRoles.map(r => r.role);
     if (tenantId) {
       try {
-        const membership = await this.membership(session.userId, tenantId);
+        const membership = await this.membership(session.userId, tenantId, platformRoles);
         permissions = membership.role.permissions.map(p => p.permission.code);
+        roleName = membership.role.name;
       } catch (error) {
         // Suspension must block business data while still allowing logout or switching to another membership.
         if (!allowTenantless || !(error instanceof UnauthorizedException)) throw error;
         tenantId = undefined;
       }
     }
-    return { userId: session.userId, sessionId: session.id, tenantId, actor: session.user.email, permissions, platformRoles: session.user.platformRoles.map(r => r.role) };
+    return { userId: session.userId, sessionId: session.id, tenantId, roleName, actor: session.user.email, permissions, platformRoles };
   }
-  async membership(userId: string, tenantId: string) {
+  // The platform Administrator has general access: in any active organization it
+  // acts with that organization's TENANT_ADMIN permissions, without a membership.
+  async membership(userId: string, tenantId: string, platformRoles: string[] = []) {
+    if (platformRoles.includes(SUPER_ADMIN)) {
+      const role = await this.prisma.identity.role.findUnique({ where: { tenantId_name: { tenantId, name: TENANT_ADMIN } }, include: { tenant: true, permissions: { include: { permission: true } } } });
+      if (!role || role.tenant!.status !== 'active') throw new UnauthorizedException('Sin acceso a esta organización');
+      return { status: 'active', tenantId, tenant: role.tenant!, role };
+    }
     const membership = await this.prisma.identity.tenantMembership.findUnique({ where: { tenantId_userId: { tenantId, userId } }, include: { tenant: true, role: { include: { permissions: { include: { permission: true } } } } } });
     if (!membership || membership.status !== 'active' || membership.tenant.status !== 'active' || (membership.role.tenantId && membership.role.tenantId !== tenantId)) throw new UnauthorizedException('Sin acceso a esta organización');
     return membership;
   }
   async profile(userId: string, tenantId: string | null) {
     const user = await this.prisma.identity.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, email: true, name: true, platformRoles: true } });
-    const memberships = await this.prisma.identity.tenantMembership.findMany({ where: { userId, status: 'active', tenant: { status: 'active' } }, include: { tenant: true, role: true } });
-    const membership = tenantId ? await this.membership(userId, tenantId) : null;
-    return { user, tenant_id: tenantId, tenants: memberships.map(m => ({ id: m.tenantId, name: m.tenant.name, role: m.role.name })), permissions: membership?.role.permissions.map(p => p.permission.code) ?? [] };
+    const platformRoles = user.platformRoles.map(r => r.role);
+    // Only organizations the user belongs to, except the Administrator, who sees all of them.
+    const tenants = platformRoles.includes(SUPER_ADMIN)
+      ? (await this.prisma.identity.tenant.findMany({ where: { status: 'active' }, orderBy: { name: 'asc' } })).map(t => ({ id: t.id, name: t.name, role: SUPER_ADMIN }))
+      : (await this.prisma.identity.tenantMembership.findMany({ where: { userId, status: 'active', tenant: { status: 'active' } }, include: { tenant: true, role: true } })).map(m => ({ id: m.tenantId, name: m.tenant.name, role: m.role.name }));
+    const membership = tenantId ? await this.membership(userId, tenantId, platformRoles) : null;
+    const role = platformRoles.includes(SUPER_ADMIN) ? SUPER_ADMIN : membership?.role.name ?? null;
+    return { user, role, tenant_id: tenantId, tenants, permissions: membership?.role.permissions.map(p => p.permission.code) ?? [] };
   }
   async selectTenant(identity: Identity, tenantId: string) {
-    await this.membership(identity.userId!, tenantId);
+    await this.membership(identity.userId!, tenantId, identity.platformRoles);
     await this.prisma.identity.session.update({ where: { id: identity.sessionId! }, data: { tenantId } });
     return this.profile(identity.userId!, tenantId);
   }

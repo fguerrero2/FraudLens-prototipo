@@ -8,6 +8,18 @@ export class UpdateTenantDto {
   @IsOptional() @IsIn(['active', 'suspended']) status?: string;
   @IsOptional() @IsString() @MaxLength(40) plan?: string;
 }
+export class CreateTenantAdminDto {
+  @IsEmail() email: string;
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(120) name?: string;
+  @IsOptional() @IsString() @MinLength(12) @MaxLength(256) password?: string;
+}
+export class UpdateTenantAdminDto {
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(120) name?: string;
+  @IsOptional() @IsIn(['active', 'disabled']) status?: string;
+}
+export class TenantReportQueryDto {
+  @IsOptional() @IsIn(['json', 'xlsx', 'txt']) format?: 'json' | 'xlsx' | 'txt';
+}
 export class CreateUserDto {
   @IsEmail() email: string;
   @IsString() @MinLength(2) @MaxLength(120) name: string;

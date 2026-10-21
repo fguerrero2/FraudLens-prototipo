@@ -9,5 +9,21 @@
   "alert.updated": "Alert updated",
   "model.changed": "Model changed",
   "tenant.created": "Organization created",
-  "tenant.updated": "Organization updated"
+  "tenant.updated": "Organization updated",
+  "SUPER_ADMIN": "Administrator",
+  "TENANT_ADMIN": "Organization admin",
+  "FRAUD_ANALYST": "Fraud analyst",
+  "OPERATOR": "Operator",
+  "VIEWER": "Viewer",
+  "API_MANAGER": "API manager",
+  "tenant.activated": "Organization activated",
+  "tenant.suspended": "Organization suspended",
+  "user.created": "User created",
+  "user.updated": "User updated",
+  "membership.created": "Member added",
+  "membership.updated": "Member updated",
+  "membership.activated": "Member activated",
+  "membership.disabled": "Member deactivated",
+  "tenant_report.viewed": "Organizations report viewed",
+  "tenant_report.exported": "Organizations report downloaded"
 }

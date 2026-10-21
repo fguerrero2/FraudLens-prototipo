@@ -22,10 +22,16 @@ async function request(path, options = {}, retry = true) {
     if (response.status === 401 && tokens && !path.endsWith('/login')) session.clear()
     throw new Error(Array.isArray(body?.message) ? body.message.join(' · ') : typeof body?.message === 'string' ? body.message : translate("Request failed ({0}). Try again.", [response.status]))
   }
-  return response.json()
+  return options.raw ? response.blob() : response.json()
 }
 export const api = {
   get: path => request(path),
   post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) }),
   put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) }),
+  async download(path, filename) {
+    const url = URL.createObjectURL(await request(path, { raw: true }))
+    const link = Object.assign(document.createElement('a'), { href: url, download: filename })
+    document.body.append(link); link.click(); link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  },
 }

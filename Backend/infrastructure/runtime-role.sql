@@ -7,6 +7,6 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO fraudlens_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fraudlens_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO fraudlens_app;
 -- Defense in depth for audit records, in addition to insert/select-only RLS policies.
-REVOKE UPDATE, DELETE ON "AuditLog", "AuthEvent" FROM fraudlens_app;
+REVOKE UPDATE, DELETE ON "AuditLog", "AuthEvent", "PlatformAuditLog" FROM fraudlens_app;
 -- Runtime never needs schema migration access.
 REVOKE ALL ON "_prisma_migrations" FROM fraudlens_app;

@@ -7,6 +7,7 @@ export interface Identity {
   apiClientId?: string;
   sessionId?: string;
   tenantId?: string;
+  roleName?: string;
   permissions: string[];
   platformRoles: string[];
   actor: string;
@@ -17,3 +18,6 @@ export function currentTenant(): string {
   if (!tenantId) throw new UnauthorizedException('Seleccione una organización');
   return tenantId;
 }
+export const SUPER_ADMIN = 'SUPER_ADMIN';
+export const TENANT_ADMIN = 'TENANT_ADMIN';
+export const isSuperAdmin = (identity: Pick<Identity, 'platformRoles'>) => identity.platformRoles.includes(SUPER_ADMIN);
