@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "isolatedModules": false,
+    "incremental": false,
+    "plugins": []
+  },
+  "include": ["server/**/*", "test/**/*", "evaluation/**/*", "prisma/**/*", "scripts/**/*"],
+  "exclude": ["node_modules", "mobile"]
+}

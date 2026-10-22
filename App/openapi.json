@@ -1,0 +1,3858 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FraudLens API",
+    "version": "0.2.0",
+    "description": "API multi-tenant de FraudLens. Usuarios humanos: `Authorization: Bearer <access_token>` (obtenido en `POST /auth/login`). Integraciones: `x-api-key: <secret>` (creado en `POST /api-clients`).\n\nLas rutas de negocio operan sobre la **organización activa** de la sesión (`POST /auth/tenant`); nunca se acepta un tenant en headers o payloads.\n\nEspecificación generada desde el código: no se edita a mano."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Sistema",
+      "description": "Estado del servicio y esta especificación"
+    },
+    {
+      "name": "Autenticación",
+      "description": "Login, sesiones, organización activa y login por QR"
+    },
+    {
+      "name": "Plataforma",
+      "description": "Administración global: organizaciones, modelos, reportes y auditoría (roles de plataforma)"
+    },
+    {
+      "name": "Organización",
+      "description": "Organización activa: usuarios, membresías, roles e integraciones M2M"
+    },
+    {
+      "name": "Transacciones",
+      "description": "Ingesta y scoring, consulta, revisión y expedientes"
+    },
+    {
+      "name": "Dashboard",
+      "description": "Métricas y mapa de calor de la organización activa"
+    },
+    {
+      "name": "Configuración",
+      "description": "Umbrales, historial y modelo de riesgo de la organización"
+    },
+    {
+      "name": "Alertas",
+      "description": "Alertas automáticas y su seguimiento"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Estado del servicio",
+        "description": "Pública.",
+        "operationId": "getHealth",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Especificación OpenAPI 3 de esta API",
+        "description": "Pública.",
+        "operationId": "getOpenapiJson",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Iniciar sesión con email y contraseña",
+        "description": "Pública.",
+        "operationId": "postAuthLogin",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos; reintentar en un minuto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Renovar el access token (rota el refresh token)",
+        "description": "Pública.",
+        "operationId": "postAuthRefresh",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos; reintentar en un minuto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/qr/challenge": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Crear un desafío de login por QR (válido 2 minutos)",
+        "description": "Pública.",
+        "operationId": "postAuthQrChallenge",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos; reintentar en un minuto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/qr/authorize": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Aprobar un desafío QR desde una sesión ya iniciada",
+        "description": "Requiere sesión.",
+        "operationId": "postAuthQrAuthorize",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizeQrDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/qr/status/{id}": {
+      "get": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Consultar un desafío QR; si está aprobado devuelve la sesión una sola vez",
+        "description": "Pública.",
+        "operationId": "getAuthQrStatusId",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Perfil, organizaciones disponibles y permisos de la sesión",
+        "description": "Requiere sesión.",
+        "operationId": "getAuthMe",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/tenant": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Seleccionar la organización activa de la sesión",
+        "description": "Requiere sesión.",
+        "operationId": "postAuthTenant",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectTenantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Cerrar sesión (revoca access y refresh)",
+        "description": "Requiere sesión.",
+        "operationId": "postAuthLogout",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants": {
+      "get": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Listar organizaciones",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN` o `PLATFORM_SUPPORT`.",
+        "operationId": "getPlatformTenants",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Crear una organización",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN`.",
+        "operationId": "postPlatformTenants",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants/{id}": {
+      "put": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Renombrar, suspender o cambiar el plan de una organización",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN`.",
+        "operationId": "putPlatformTenantsId",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants/{id}/admins": {
+      "post": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Crear o asignar el administrador de una organización",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN`.",
+        "operationId": "postPlatformTenantsIdAdmins",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantAdminDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants/{id}/admins/{userId}": {
+      "put": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Modificar o desactivar un administrador de organización",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN`.",
+        "operationId": "putPlatformTenantsIdAdminsUserId",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantAdminDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/report/tenants": {
+      "get": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Reporte de organizaciones en JSON, Excel o texto",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN`.",
+        "operationId": "getPlatformReportTenants",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "xlsx",
+                "txt"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON por defecto; con format=xlsx o txt, archivo adjunto",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/history": {
+      "get": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Historial de cambios de usuarios y organizaciones",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN`.",
+        "operationId": "getPlatformHistory",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tenant": {
+      "get": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Ver la organización activa",
+        "description": "Requiere organización activa y permisos: `tenant.read`.",
+        "operationId": "getTenant",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Renombrar la organización activa",
+        "description": "Requiere organización activa y permisos: `tenant.update`.",
+        "operationId": "putTenant",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameTenantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Listar miembros de la organización",
+        "description": "Requiere organización activa y permisos: `users.read`.",
+        "operationId": "getUsers",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Crear un usuario y su membresía",
+        "description": "Requiere organización activa y permisos: `users.create`.",
+        "operationId": "postUsers",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/history": {
+      "get": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Historial de cambios de miembros",
+        "description": "Requiere organización activa y permisos: `users.read`, `audit.read`.",
+        "operationId": "getUsersHistory",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memberships": {
+      "post": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Agregar un usuario existente a la organización",
+        "description": "Requiere organización activa y permisos: `users.create`.",
+        "operationId": "postMemberships",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memberships/{id}": {
+      "put": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Cambiar rol o estado de un miembro",
+        "description": "Requiere organización activa y permisos: `users.update`, `users.disable`.",
+        "operationId": "putMembershipsId",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMembershipDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles": {
+      "get": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Listar roles de la organización",
+        "description": "Requiere organización activa y permisos: `roles.read`.",
+        "operationId": "getRoles",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Crear un rol personalizado",
+        "description": "Requiere organización activa y permisos: `roles.create`.",
+        "operationId": "postRoles",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles/{id}": {
+      "put": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Modificar un rol personalizado",
+        "description": "Requiere organización activa y permisos: `roles.update`.",
+        "operationId": "putRolesId",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api-clients": {
+      "get": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Listar integraciones M2M",
+        "description": "Requiere organización activa y permisos: `api_clients.read`.",
+        "operationId": "getApiClients",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Crear una integración M2M (el secreto se muestra una sola vez)",
+        "description": "Requiere organización activa y permisos: `api_clients.create`.",
+        "operationId": "postApiClients",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiClientDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api-clients/{id}/revoke": {
+      "put": {
+        "tags": [
+          "Organización"
+        ],
+        "summary": "Revocar una integración M2M",
+        "description": "Requiere organización activa y permisos: `api_clients.revoke`.",
+        "operationId": "putApiClientsIdRevoke",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts": {
+      "get": {
+        "tags": [
+          "Alertas"
+        ],
+        "summary": "Listar las últimas 100 alertas",
+        "description": "Requiere organización activa y permisos: `alerts.read`.",
+        "operationId": "getAlerts",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts/{id}": {
+      "put": {
+        "tags": [
+          "Alertas"
+        ],
+        "summary": "Actualizar estado o responsable de una alerta",
+        "description": "Requiere organización activa y permisos: `alerts.update`.",
+        "operationId": "putAlertsId",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAlertDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models": {
+      "get": {
+        "tags": [
+          "Configuración"
+        ],
+        "summary": "Listar modelos de riesgo disponibles",
+        "description": "Requiere organización activa y permisos: `settings.read`.",
+        "operationId": "getModels",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/models": {
+      "get": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Listar todos los modelos registrados",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN` o `PLATFORM_SUPPORT`.",
+        "operationId": "getPlatformModels",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Registrar un modelo (heurístico o artefacto de anomalías)",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN`.",
+        "operationId": "postPlatformModels",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterModelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/model": {
+      "get": {
+        "tags": [
+          "Configuración"
+        ],
+        "summary": "Ver el modelo asignado a la organización",
+        "description": "Requiere organización activa y permisos: `settings.read`.",
+        "operationId": "getSettingsModel",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Configuración"
+        ],
+        "summary": "Asignar un modelo a la organización",
+        "description": "Requiere organización activa y permisos: `settings.update`.",
+        "operationId": "putSettingsModel",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectModelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/audit": {
+      "get": {
+        "tags": [
+          "Plataforma"
+        ],
+        "summary": "Últimos 100 eventos de autenticación y plataforma",
+        "description": "Requiere rol de plataforma: `SUPER_ADMIN` o `PLATFORM_SUPPORT`.",
+        "operationId": "getPlatformAudit",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/thresholds": {
+      "get": {
+        "tags": [
+          "Configuración"
+        ],
+        "summary": "Ver umbrales de revisión y bloqueo",
+        "description": "Requiere organización activa y permisos: `settings.read`.",
+        "operationId": "getSettingsThresholds",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Configuración"
+        ],
+        "summary": "Modificar umbrales (CU-07)",
+        "description": "Requiere organización activa y permisos: `settings.update`.",
+        "operationId": "putSettingsThresholds",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateThresholdsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/thresholds/history": {
+      "get": {
+        "tags": [
+          "Configuración"
+        ],
+        "summary": "Historial de cambios de umbrales",
+        "description": "Requiere organización activa y permisos: `audit.read`.",
+        "operationId": "getSettingsThresholdsHistory",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/thresholds/audit": {
+      "get": {
+        "tags": [
+          "Configuración"
+        ],
+        "summary": "Auditoría de la organización",
+        "description": "Requiere organización activa y permisos: `audit.read`.",
+        "operationId": "getSettingsThresholdsAudit",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions": {
+      "post": {
+        "tags": [
+          "Transacciones"
+        ],
+        "summary": "Registrar y analizar una transacción (CU-01); idempotente por transaction_id",
+        "description": "Requiere organización activa y permisos: `transactions.create`.",
+        "operationId": "postTransactions",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Transacciones"
+        ],
+        "summary": "Listar transacciones con filtros, orden y paginación (CU-05)",
+        "description": "Requiere organización activa y permisos: `transactions.read`.",
+        "operationId": "getTransactions",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "name": "risk_level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "bajo",
+                "medio",
+                "alto",
+                "critico",
+                "no_evaluado"
+              ]
+            }
+          },
+          {
+            "name": "decision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "aprobar",
+                "revisar",
+                "bloquear"
+              ]
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transaction_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "date",
+                "risk"
+              ]
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maximum": 200,
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions/cases/list": {
+      "get": {
+        "tags": [
+          "Transacciones"
+        ],
+        "summary": "Bandeja de expedientes de fraude",
+        "description": "Requiere organización activa y permisos: `transactions.read`.",
+        "operationId": "getTransactionsCasesList",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "investigating",
+                "resolved",
+                "closed"
+              ]
+            },
+            "name": "status",
+            "description": "Filtra por estado del expediente"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions/{transactionId}": {
+      "get": {
+        "tags": [
+          "Transacciones"
+        ],
+        "summary": "Detalle completo de una transacción (CU-06)",
+        "description": "Requiere organización activa y permisos: `transactions.read`.",
+        "operationId": "getTransactionsTransactionId",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions/{transactionId}/review": {
+      "put": {
+        "tags": [
+          "Transacciones"
+        ],
+        "summary": "Registrar la revisión de un analista",
+        "description": "Requiere organización activa y permisos: `transactions.review`.",
+        "operationId": "putTransactionsTransactionIdReview",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions/{transactionId}/case": {
+      "post": {
+        "tags": [
+          "Transacciones"
+        ],
+        "summary": "Abrir un expediente de fraude",
+        "description": "Requiere organización activa y permisos: `transactions.review`.",
+        "operationId": "postTransactionsTransactionIdCase",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Transacciones"
+        ],
+        "summary": "Actualizar un expediente de fraude",
+        "description": "Requiere organización activa y permisos: `transactions.review`.",
+        "operationId": "putTransactionsTransactionIdCase",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (lista de campos en `fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la organización activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard/heatmap": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Mapa de calor de riesgo (últimos 30 días, celdas agregadas)",
+        "description": "Requiere organización activa y permisos: `dashboard.read`.",
+        "operationId": "getDashboardHeatmap",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard/metrics": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Métricas del día en la zona horaria de la organización",
+        "description": "Requiere organización activa y permisos: `dashboard.read`.",
+        "operationId": "getDashboardMetrics",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión, sesión vencida o credencial inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permisos insuficientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Access token de una sesión humana (15 minutos)."
+      },
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Secreto de una integración M2M; solo permisos acotados."
+      }
+    },
+    "schemas": {
+      "UpdateAlertDto": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "investigating",
+              "resolved"
+            ]
+          },
+          "assigned_to": {
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ]
+      },
+      "LoginDto": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 256,
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "RefreshDto": {
+        "properties": {
+          "refresh_token": {
+            "maxLength": 256,
+            "type": "string",
+            "minLength": 20
+          }
+        },
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ]
+      },
+      "SelectTenantDto": {
+        "properties": {
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id"
+        ]
+      },
+      "AuthorizeQrDto": {
+        "properties": {
+          "challenge_id": {
+            "maxLength": 256,
+            "type": "string",
+            "minLength": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "challenge_id"
+        ]
+      },
+      "RegisterModelDto": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "type": "string",
+            "minLength": 2
+          },
+          "version": {
+            "maxLength": 120,
+            "type": "string",
+            "minLength": 2
+          },
+          "model_type": {
+            "type": "string",
+            "enum": [
+              "heuristic",
+              "anomaly"
+            ]
+          },
+          "artifact_path": {
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "model_type"
+        ]
+      },
+      "SelectModelDto": {
+        "properties": {
+          "model_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_id"
+        ]
+      },
+      "UpdateThresholdsDto": {
+        "properties": {
+          "timezone": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "default_currency": {
+            "pattern": "^[A-Z]{3}$",
+            "type": "string"
+          },
+          "min_amount_enabled": {
+            "type": "boolean"
+          },
+          "min_amount": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "review_threshold": {
+            "maximum": 100,
+            "type": "number",
+            "minimum": 0
+          },
+          "block_threshold": {
+            "maximum": 100,
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "type": "object"
+      },
+      "CreateTenantDto": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "type": "string",
+            "minLength": 2
+          },
+          "slug": {
+            "maxLength": 80,
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "slug"
+        ]
+      },
+      "UpdateTenantDto": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "type": "string",
+            "minLength": 2
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended"
+            ]
+          },
+          "plan": {
+            "maxLength": 40,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateTenantAdminDto": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string",
+            "minLength": 2
+          },
+          "password": {
+            "maxLength": 256,
+            "type": "string",
+            "minLength": 12
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ]
+      },
+      "UpdateTenantAdminDto": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "type": "string",
+            "minLength": 2
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "CreateUserDto": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string",
+            "minLength": 2
+          },
+          "password": {
+            "maxLength": 256,
+            "type": "string",
+            "minLength": 12
+          },
+          "role_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "name",
+          "password",
+          "role_id"
+        ]
+      },
+      "MembershipDto": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "role_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "role_id"
+        ]
+      },
+      "UpdateMembershipDto": {
+        "properties": {
+          "role_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "CreateRoleDto": {
+        "properties": {
+          "name": {
+            "maxLength": 80,
+            "type": "string",
+            "minLength": 2
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "permissions"
+        ]
+      },
+      "CreateApiClientDto": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "type": "string",
+            "minLength": 2
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "permissions"
+        ]
+      },
+      "RenameTenantDto": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "type": "string",
+            "minLength": 2
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ]
+      },
+      "CreateCaseDto": {
+        "properties": {
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "critical"
+            ]
+          },
+          "reason": {
+            "minLength": 3,
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "priority",
+          "reason"
+        ]
+      },
+      "CreateTransactionDto": {
+        "properties": {
+          "latitude": {
+            "maximum": 90,
+            "type": "number",
+            "minimum": -90
+          },
+          "longitude": {
+            "maximum": 180,
+            "type": "number",
+            "minimum": -180
+          },
+          "transaction_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "user_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              }
+            ]
+          },
+          "amount": {
+            "maximum": 1000000000000,
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "type": "string"
+          },
+          "category": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "merchant": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "country": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channel": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "device_id": {
+            "type": "string"
+          },
+          "operation_type": {
+            "type": "string",
+            "enum": [
+              "CASH_IN",
+              "CASH_OUT",
+              "DEBIT",
+              "PAYMENT",
+              "TRANSFER"
+            ]
+          },
+          "name_orig": {
+            "type": "string"
+          },
+          "old_balance_orig": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "new_balance_orig": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "name_dest": {
+            "type": "string"
+          },
+          "old_balance_dest": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "new_balance_dest": {
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction_id",
+          "user_id",
+          "timestamp",
+          "amount",
+          "currency",
+          "category",
+          "merchant",
+          "country",
+          "channel"
+        ]
+      },
+      "ReviewTransactionDto": {
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "fraud",
+              "legitimate",
+              "pending"
+            ]
+          },
+          "analyst": {
+            "minLength": 2,
+            "maxLength": 100,
+            "type": "string"
+          },
+          "comment": {
+            "minLength": 3,
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcome",
+          "analyst",
+          "comment"
+        ]
+      },
+      "UpdateCaseDto": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "investigating",
+              "resolved",
+              "closed"
+            ]
+          },
+          "assigned_to": {
+            "minLength": 2,
+            "maxLength": 120,
+            "type": "string"
+          },
+          "resolution": {
+            "minLength": 3,
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "statusCode",
+          "message",
+          "timestamp",
+          "path"
+        ],
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "example": 400
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "error": {
+            "type": "string",
+            "example": "Bad Request"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "errors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "path": {
+            "type": "string",
+            "example": "/api/v1/transactions"
+          }
+        }
+      }
+    }
+  }
+}

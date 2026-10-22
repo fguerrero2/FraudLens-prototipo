@@ -22,7 +22,7 @@ Origen: https://www.kaggle.com/datasets/ealaxi/paysim1
 - `validation.jsonl`: 20% siguiente, usado solo para elegir umbral.
 - `test.jsonl`: 20% final, intocable hasta la medicion.
 
-Los manifiestos de cada dominio registran conteos y fraude por particion. Para regenerar las particiones desde `Backend`:
+Los manifiestos de cada dominio registran conteos y fraude por particion. Para regenerar las particiones desde `App`:
 
 ```sh
 NODE_OPTIONS=--max-old-space-size=8192 npm run split:open-datasets -- ../Datasets/tarjetas/raw/creditcard.csv ../Datasets/transferencias/raw/PS_20174392719_1491204439457_log.csv ../Datasets

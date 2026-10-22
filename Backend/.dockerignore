@@ -1,8 +1,0 @@
-node_modules
-dist
-.git
-.env
-*.log
-.DS_Store
-prisma/dev.db
-prisma/migrations.sqlite-backup

@@ -1,61 +1,29 @@
 # FraudLens-prototipo
 
+Prototipo de FraudLens: **web y API en un solo proyecto Next.js** (`App/`), pensado para un único deploy en Vercel con PostgreSQL (Supabase o Neon).
 
-Estructura:
-- Frontend Vite servido por Nginx: http://localhost:5173
-- Backend NestJS: http://localhost:3000/api/v1
-- PostgreSQL Docker: localhost:5433
-- Comunicación interna backend → PostgreSQL: postgres:5432
-- Proxy frontend → backend mediante /api/v1
-- 
-Los tres contenedores están activos y saludables. También verifiqué el endpoint de salud tanto directo como a través del frontend.
-Archivos principales:
-- [compose.yaml](/Users/franciscoguerrero/VsCodeProjects/FraudLens-prototipo/Backend/compose.yaml)
-- [Dockerfile backend](/Users/franciscoguerrero/VsCodeProjects/FraudLens-prototipo/Backend/Dockerfile)
-- [Dockerfile frontend](/Users/franciscoguerrero/VsCodeProjects/FraudLens-prototipo/Frontend/Dockerfile)
-- [nginx.conf](/Users/franciscoguerrero/VsCodeProjects/FraudLens-prototipo/Frontend/nginx.conf)
-PostgreSQL usa 5433 en el host porque ya existe otro contenedor llamado fraudlens-postgres ocupando 5432.
+| Carpeta | Qué es |
+|---|---|
+| [`App/`](App/README.md) | Web React + API `/api/v1` (Next.js), Prisma, tests y evaluación del modelo |
+| [`App/mobile/`](App/mobile/README.md) | App React Native/Expo que consume la misma API |
+| [`Datasets/`](Datasets/README.md) | Datasets abiertos para evaluar el motor de riesgo |
+| [`fraudlens-arquitectura.md`](fraudlens-arquitectura.md) | Documento de arquitectura |
+| [`estructura.md`](estructura.md) | Diagrama de la estructura actual |
 
-Comandos útiles:
-cd /Users/franciscoguerrero/VsCodeProjects/FraudLens-prototipo/Backend
+## Correr todo con Docker
 
+```bash
+cd App
 docker compose up --build -d
-docker compose ps
-docker compose logs -f
-docker compose exec backend npm run seed
-docker compose down
-El último comando de seed es opcional y carga los datos de demostración.
-
-Edited 8 files+172-1Review changesUndoReview
-
-.dockerignore.dockerignore+8-0
-DockerfileDockerfile+34-0
-README.mdREADME.md+25-0
-compose.yamlcompose.yaml+58-0
-package.jsonpackage.json+1-1
-Frontend/.dockerignoreFrontend/.dockerignore+6-0
-Frontend/DockerfileFrontend/Dockerfile+20-0
-Frontend/nginx.confFrontend/nginx.conf+20-0
-Collapse files
-
-
-
-
-
-
-```mermaid
-flowchart TD
-    A["Frontend · React + Vite"] -->|HTTP / JSON| B["API REST · NestJS"]
-    C["Sistema cliente externo"] -->|Envía transacciones| B
-    subgraph Backend
-        B --> T["Transacciones"]
-        B --> D["Dashboard"]
-        B --> S["Configuración de umbrales"]
-        T --> R["Motor de riesgo"]
-        T --> S
-        T --> P["Prisma"]
-        D --> P
-        S --> P
-    end
-    P --> DB[("PostgreSQL")]
+BOOTSTRAP_ADMIN_EMAIL=admin@example.com BOOTSTRAP_ADMIN_PASSWORD='<12+ caracteres>' SEED_DEMO_DATA=true docker compose run --rm seed
 ```
+
+- Web: http://localhost:3000
+- API: http://localhost:3000/api/v1
+- PostgreSQL: `localhost:5433` (dentro de Docker, `postgres:5432`)
+
+Una sola imagen (`fraudlens-app`) sirve la web y la API, igual que en Vercel. Comandos útiles: `docker compose ps`, `docker compose logs -f app`, `docker compose down`.
+
+Despliegue: [App/DEPLOYMENT.md](App/DEPLOYMENT.md).
+
+> Hasta la rama `003_fix_fraud_tests` el prototipo estaba separado en `Backend/` (NestJS en Render) y `Frontend/` (Vite en Vercel). Ese esquema queda en el historial de git.
