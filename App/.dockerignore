@@ -1,0 +1,12 @@
+node_modules
+.next
+.env
+.env.*
+!.env.example
+mobile/*
+!mobile/shared
+evaluation/results
+prisma/dev.db
+*.md
+Dockerfile
+compose.yaml

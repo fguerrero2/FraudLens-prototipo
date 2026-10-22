@@ -1,0 +1,63 @@
+# Local simulation of the Vercel + PostgreSQL deploy: one app image and one database.
+#   docker compose up --build
+#   BOOTSTRAP_ADMIN_EMAIL=... BOOTSTRAP_ADMIN_PASSWORD=... docker compose run --rm seed
+name: fraudlens-next
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: fraudlens
+      POSTGRES_USER: fraudlens
+      POSTGRES_PASSWORD: fraudlens_dev_password
+    ports:
+      # 5432 suele estar ocupado por un PostgreSQL local; entre contenedores siempre es postgres:5432.
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/local-init.sql:/docker-entrypoint-initdb.d/10-app-role.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraudlens -d fraudlens"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+    image: fraudlens-app:local
+    environment:
+      # Runtime role without SUPERUSER/BYPASSRLS, like the pooled URL on Vercel.
+      DATABASE_URL: postgresql://fraudlens_app:fraudlens_local_app_password@postgres:5432/fraudlens?connection_limit=5
+      # Schema owner, only for migrations.
+      DIRECT_URL: postgresql://fraudlens:fraudlens_dev_password@postgres:5432/fraudlens
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/v1/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  # One-off: creates the bootstrap administrator (and demo data with SEED_DEMO_DATA=true).
+  seed:
+    image: fraudlens-app:local
+    profiles: ["seed"]
+    command: ["npx", "tsx", "prisma/seed.ts"]
+    environment:
+      DATABASE_URL: postgresql://fraudlens_app:fraudlens_local_app_password@postgres:5432/fraudlens
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
